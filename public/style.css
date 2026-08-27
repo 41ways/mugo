@@ -547,31 +547,30 @@ p.ask{
 
 /* ── 등장 연출 — 물건마다 나타나는 방식이 다르다 ──────────── */
 
-/* 편지 — 봉투에서 꺼내 펼치듯 */
-.file.hand{
-  animation:unfold .75s cubic-bezier(.2,.75,.3,1) both;
-  transform-origin:50% 0;
+/* 편지 · 증거 인멸 — 사건일지와 같은 결로. 한 줄씩 넘겨 읽는 느낌 */
+.file.hand, .file.alarm{
+  animation:leaf .42s cubic-bezier(.2,.75,.3,1) both;
 }
-@keyframes unfold{
-  0%{opacity:0; transform:perspective(900px) rotateX(-72deg) translateY(-14px) rotate(.4deg)}
-  60%{opacity:1}
-  100%{opacity:1; transform:perspective(900px) rotateX(0) translateY(0) rotate(.4deg)}
+.file.hand > h4, .file.alarm > h4,
+.file.hand > div > p, .file.alarm > div > p{
+  animation:leaf .42s cubic-bezier(.2,.75,.3,1) both;
 }
+.file.hand > h4, .file.alarm > h4{animation-delay:.06s}
+.file.hand > div > p:nth-child(1), .file.alarm > div > p:nth-child(1){animation-delay:.14s}
+.file.hand > div > p:nth-child(2), .file.alarm > div > p:nth-child(2){animation-delay:.22s}
+.file.hand > div > p:nth-child(3), .file.alarm > div > p:nth-child(3){animation-delay:.30s}
+.file.hand > div > p:nth-child(4), .file.alarm > div > p:nth-child(4){animation-delay:.38s}
+.file.hand > div > p:nth-child(5), .file.alarm > div > p:nth-child(5){animation-delay:.46s}
+.file.hand > div > p:nth-child(6), .file.alarm > div > p:nth-child(6){animation-delay:.54s}
+.file.alarm > .stamp, .file.hand > .stamp{animation:leaf .42s .5s cubic-bezier(.2,.75,.3,1) both}
 
 /* 조서·압수품 — 책상에 툭 내려놓듯 */
-.file:not(.hand){
+.file:not(.hand):not(.alarm){
   animation:drop .5s cubic-bezier(.25,.9,.35,1.15) both;
 }
 @keyframes drop{
   0%{opacity:0; transform:translateY(-22px) rotate(-1.4deg) scale(1.03)}
   100%{opacity:1; transform:translateY(0) rotate(-.25deg) scale(1)}
-}
-/* 증거 인멸 카드는 한 번 더 흔들린다 */
-.file.alarm{animation:drop .5s cubic-bezier(.25,.9,.35,1.15) both, jolt .5s .5s ease-out both}
-@keyframes jolt{
-  0%,100%{transform:translateY(0) rotate(.3deg)}
-  25%{transform:translateY(0) rotate(-.9deg)}
-  60%{transform:translateY(0) rotate(.8deg)}
 }
 
 /* 사진 — 어둠에서 서서히 떠오르듯 */
@@ -606,6 +605,7 @@ p.ask{
 }
 
 @media (prefers-reduced-motion:reduce){
-  .file.hand,.file:not(.hand),.file.alarm,.plate.photo,.pages .page,.page.torn{animation:none}
+  .file, .file > h4, .file > div > p, .file > .stamp,
+  .plate.photo, .pages .page, .page.torn{animation:none}
   .plate .hot{animation:none}
 }
