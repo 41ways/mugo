@@ -71,10 +71,15 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
 #media{flex:none; display:flex; flex-direction:column; gap:10px; min-height:0}
 #media:empty{display:none}
 #flow{flex:1 1 auto; min-height:0; overflow:hidden}
-#foot{
-  flex:none; min-height:58px;
-  display:flex; flex-direction:column; justify-content:flex-end; gap:8px;
-}
+#foot{flex:none; display:flex; flex-direction:column; gap:clamp(10px,1.7vh,18px)}
+/* 선택지는 계속 버튼 자리를 침범하지 않는다 */
+#opts{display:flex; flex-direction:column; gap:8px}
+#opts:empty{display:none}
+#tapslot{flex:none; min-height:46px; display:flex; align-items:center}
+/* 관찰 화면 — 사진을 크게 쓰고, 글자와 함께 가운데로 내린다 */
+#stage.look #media{margin-top:auto}
+#stage.look #flow{flex:0 1 auto; margin-bottom:auto}
+#stage.look .plate.photo{max-width:min(100%, 95dvh)}
 /* 제목·판결처럼 화면을 다 쓰는 것들 */
 #stage.mid #flow{display:flex; flex-direction:column; justify-content:center}
 
@@ -98,6 +103,13 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
 /* ── 서술 ───────────────────────────────────────────── */
 
 .say{margin:0 0 1.05em; font-size:clamp(16px,4.1vw,17.5px); color:var(--paper); text-wrap:pretty}
+/* 한 낱말씩 떠오른다. 한 줄이 통째로 튀어나오면 딱딱하다. */
+.w{display:inline-block; animation:word .62s cubic-bezier(.2,.7,.3,1) both}
+@keyframes word{
+  from{opacity:0; transform:translateY(5px); filter:blur(4px)}
+  to{opacity:1; transform:none; filter:blur(0)}
+}
+@media (prefers-reduced-motion:reduce){ .w{animation:none} }
 .say.q{color:var(--fog)}
 .say.whisper{color:var(--faint); font-size:15px; font-style:italic}
 .say.beat{color:var(--lamp); font-size:15px; letter-spacing:.02em}
@@ -463,3 +475,44 @@ body.slow .plate.photo img{filter:contrast(1.04) brightness(.96)}
 /* 증거 인멸 카드 — 같은 종이인데 도장이 다르다 */
 .file.alarm{border-left:3px solid var(--blood); transform:rotate(.3deg)}
 .file.alarm h4{color:var(--blood)}
+
+/* ── 몰입 화면 — 사진이 화면을 다 덮고, 그 위에서 고른다 ────── */
+#scene{position:fixed; inset:0; z-index:45; display:none; background:#000; overflow:hidden}
+#scene.on{display:block}
+#scene > img{
+  position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+  transform-origin:50% 46%;
+  animation:push 26s cubic-bezier(.15,.5,.35,1) both;
+  transition:filter 1.8s ease-in;
+}
+@keyframes push{from{transform:scale(1.02)} to{transform:scale(1.26)}}
+#scene.dim > img{filter:brightness(.12) contrast(1.25) saturate(.5)}
+#scene::after{
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background:radial-gradient(115% 95% at 50% 44%, transparent 22%, rgba(0,0,0,.82) 100%);
+}
+.scene-in{
+  position:absolute; inset:0; z-index:2;
+  display:flex; flex-direction:column;
+  padding:clamp(18px,4vh,44px) clamp(16px,5vw,40px) clamp(16px,3vh,30px);
+  max-width:900px; margin:0 auto;
+}
+.scene-text{
+  flex:1 1 auto; min-height:0; display:flex; flex-direction:column; justify-content:center;
+  text-align:center; gap:2px;
+}
+.scene-text .say{
+  margin:0 0 .7em; font-size:clamp(17px,4.3vw,20px);
+  text-shadow:0 2px 22px rgba(0,0,0,.95), 0 0 60px rgba(0,0,0,.8);
+}
+.scene-text .say.beat{color:var(--lamp)}
+.scene-foot{flex:none; display:flex; flex-direction:column; gap:12px; min-height:52px; justify-content:flex-end}
+.scene-foot .tap{align-self:center}
+/* 소리 난 쪽에 놓이는 선택지 — 사진 위 */
+.scene-in .p-left,.scene-in .p-right{position:absolute; top:50%; transform:translateY(-50%); max-width:38%; text-align:center}
+.scene-in .p-left{left:clamp(10px,4vw,52px)}
+.scene-in .p-right{right:clamp(10px,4vw,52px)}
+.scene-in .p-up,.scene-in .p-down{position:absolute; left:50%; transform:translateX(-50%); max-width:70%; text-align:center}
+.scene-in .p-up{top:clamp(46px,12vh,110px)}
+.scene-in .p-down{bottom:clamp(64px,14vh,120px)}
+.scene-in button.dopt{font-size:clamp(15px,4vw,18px); text-shadow:0 2px 18px rgba(0,0,0,.9)}

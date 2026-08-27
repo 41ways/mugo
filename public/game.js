@@ -14,7 +14,9 @@
   const stage = document.getElementById('stage');
   const media = document.getElementById('media');   // 사진·조서 — 위
   const flow = document.getElementById('flow');     // 글자 — 가운데, 위에서 아래로
-  const foot = document.getElementById('foot');     // 계속·선택지 — 아래, 자리 고정
+  const opts = document.getElementById('opts');     // 선택지 — 계속 버튼 위
+  const tapslot = document.getElementById('tapslot'); // 계속 — 자리는 늘 비어 있어도 지킨다
+  const scene = document.getElementById('scene');   // 사진이 화면을 다 덮는 몰입 화면
   const slowbar = document.getElementById('slowbar');
 
   /* ── 잡동사니 ───────────────────────────────────────── */
@@ -58,8 +60,20 @@
     return n;
   }
   function setMedia(n) { media.innerHTML = ''; if (n) media.appendChild(n); return n; }
-  function setFoot(n) { foot.innerHTML = ''; if (n) foot.appendChild(n); return n; }
-  function wipe() { media.innerHTML = ''; flow.innerHTML = ''; foot.innerHTML = ''; }
+  function setFoot(n) { opts.innerHTML = ''; if (n) opts.appendChild(n); return n; }
+  function setTap(n) { tapslot.innerHTML = ''; if (n) tapslot.appendChild(n); return n; }
+  function wipe() { media.innerHTML = ''; flow.innerHTML = ''; opts.innerHTML = ''; tapslot.innerHTML = ''; }
+
+  // 한 낱말씩 떠오르게. 줄 전체가 통째로 튀어나오면 딱딱하다.
+  function words(text, from = 0) {
+    let i = from;
+    return String(text).split(/(\s+)/).map((w) => {
+      if (!w || /^\s+$/.test(w)) return w;
+      const d = i * 34; i += 1;
+      return `<span class="w" style="animation-delay:${d}ms">${esc(w)}</span>`;
+    }).join('');
+  }
+  const wordCount = (t) => String(t || '').split(/\s+/).filter(Boolean).length;
   const put = (node) => addLine(node);
   const toBottom = () => {};   // 이제 스크롤하지 않는다
   const clear = wipe;
@@ -89,24 +103,22 @@
   /* ── 서술 ───────────────────────────────────────────── */
 
   // 한 덩어리를 한 박자씩 띄운다. 도중에 누르면 남은 줄이 한꺼번에 나온다.
-  function say(lines, opts = {}) {
+  function say(lines, o = {}) {
     return new Promise((resolve) => {
       if (lines.some((l) => l.c)) wipe();
       let i = 0, timer = null, ended = false, closed = false;
 
       const node = (l) => {
-        let n;
-        if (l.c) n = el('div', 'chapter', esc(l.c));
-        else if (l.hr) n = el('hr', 'hr');
-        else if (l.who) n = el('div', 'said ' + (SPEAKER[l.who] || 's-etc'),
-          `<span class="who">${esc(l.who)}</span>${esc(l.s)}`);
-        else if (l.b) n = el('p', 'say beat', esc(l.b));
-        else if (l.w) n = el('p', 'say whisper', esc(l.w));
-        else n = el('p', 'say', esc(l.s));
-        n.style.animation = 'rise .5s cubic-bezier(.2,.7,.3,1) both';
-        return n;
+        if (l.c) return el('div', 'chapter', words(l.c));
+        if (l.hr) return el('hr', 'hr');
+        if (l.who) return el('div', 'said ' + (SPEAKER[l.who] || 's-etc'),
+          `<span class="who">${esc(l.who)}</span>${words(l.s)}`);
+        if (l.b) return el('p', 'say beat', words(l.b));
+        if (l.w) return el('p', 'say whisper', words(l.w));
+        return el('p', 'say', words(l.s));
       };
-      const pace = (l) => l.c ? 560 : l.hr ? 220 : Math.min(1100, 320 + String(l.s || '').length * 11);
+      // 낱말이 다 떠오를 때까지 기다렸다가 다음 줄로 넘어간다.
+      const pace = (l) => l.hr ? 240 : Math.min(1900, 420 + wordCount(l.s || l.c || '') * 46);
 
       const step = () => {
         if (i >= lines.length) return arrive();
@@ -122,8 +134,8 @@
       const arrive = () => {
         if (ended) return;
         ended = true;
-        if (opts.silent) return finish();
-        setFoot(el('div', 'tap', opts.label || '계속'));
+        if (o.silent) return finish();
+        setTap(el('div', 'tap', o.label || '계속'));
       };
       const finish = () => {
         if (closed) return;
@@ -131,7 +143,7 @@
         clearTimeout(timer);
         removeEventListener('keydown', onGo, true);
         removeEventListener('click', onGo, true);
-        if (!opts.silent) foot.innerHTML = '';
+        if (!o.silent) tapslot.innerHTML = '';
         resolve();
       };
       const onGo = (e) => {
@@ -143,7 +155,7 @@
         else finish();
       };
 
-      if (!opts.silent) {
+      if (!o.silent) {
         addEventListener('keydown', onGo, true);
         addEventListener('click', onGo, true);
       }
@@ -153,19 +165,18 @@
 
   /* ── 선택 ───────────────────────────────────────────── */
 
-  function choose(prompt, opts) {
+  function choose(prompt, choices) {
     return new Promise((resolve) => {
-      if (prompt) addLine(el('p', 'say q', esc(prompt)));
+      if (prompt) addLine(el('p', 'say q', words(prompt)));
       const list = setFoot(el('div', 'opts'));
-      opts.forEach((o, idx) => {
+      choices.forEach((o, idx) => {
         const label = typeof o === 'string' ? o : o.label;
         const cost = (typeof o === 'object' && o.cost != null)
           ? `<span class="cost">${o.cost ? '−' + o.cost : '즉시'}</span>` : '';
         const b = list.appendChild(el('button', 'opt', cost + esc(label)));
         b.disabled = typeof o === 'object' && o.disabled;
         b.onclick = () => {
-          [...list.children].forEach((c) => { c.disabled = true; });
-          b.classList.add('picked');
+          opts.innerHTML = '';       // 고르고 나면 남기지 않는다
           resolve(idx);
         };
       });
@@ -215,8 +226,9 @@
       const plate = PLATES[cfg.plate];
       const found = [];
       slow(true);
+      stage.classList.add('look');
 
-      addLine(el('p', 'say whisper', esc(cfg.lead)));
+      addLine(el('p', 'say whisper', words(cfg.lead)));
 
       const pane = setMedia(el('div'));
       pane.style.cssText = 'display:flex;flex-direction:column;gap:9px;min-height:0';
@@ -252,9 +264,10 @@
 
       const finish = () => {
         [...frame.querySelectorAll('.hot')].forEach((h) => { h.disabled = true; h.classList.add('done'); });
-        foot.innerHTML = '';
+        opts.innerHTML = '';
         slow(false);
-        addLine(el('p', 'say whisper', esc(cfg.done)));
+        stage.classList.remove('look');
+        addLine(el('p', 'say whisper', words(cfg.done)));
         resolve(found);
       };
 
@@ -290,14 +303,14 @@
           };
         });
       });
-      foot.innerHTML = '';
+      opts.innerHTML = '';
     }
     return perfect;
   }
 
   // 제한 시간. 탭을 가리면 멈춘다 — 브라우저가 타이머를 늦춰버려서,
   // 돌아왔을 때 이미 지나 있으면 그건 플레이어 잘못이 아니다.
-  function timed(cueHtml, opts, seconds, dark, img) {
+  function timed(cueHtml, choices, seconds, dark, img) {
     return new Promise((resolve) => {
       if (img) setMedia(el('div', 'plate photo', `<img src="${img}" alt="" decoding="async">`));
       addLine(el('p', 'say', cueHtml));
@@ -335,7 +348,7 @@
         resolve(idx);
       };
 
-      opts.forEach((label, idx) => {
+      choices.forEach((label, idx) => {
         const b = list.appendChild(el('button', 'opt', esc(label)));
         b.onclick = () => end(idx);
       });
@@ -346,18 +359,83 @@
     });
   }
 
-  // 어둠 속에서는 방향이 곧 정보다. 그래서 선택지를 소리가 난 쪽에 놓는다.
-  function blindBeat(b, seconds) {
+  /* ── 몰입 화면 — 사진이 화면을 다 덮고, 그 위에서 고른다 ───────── */
+
+  function sceneOpen(img) {
+    scene.className = 'on';
+    scene.innerHTML = `<img src="${img}" alt="" decoding="async"><div class="scene-in"></div>`;
+    return scene.querySelector('.scene-in');
+  }
+  function sceneBody() {
+    const box = scene.querySelector('.scene-in');
+    box.innerHTML = '';
+    return box;
+  }
+  function sceneClose() {
+    scene.className = '';
+    scene.innerHTML = '';
+  }
+  function sceneNode(l) {
+    if (l.hr) return el('hr', 'hr');
+    if (l.who) return el('p', 'say beat', `「${esc(l.who)}」 ${words(l.s)}`);
+    if (l.b) return el('p', 'say beat', words(l.b));
+    if (l.w) return el('p', 'say whisper', words(l.w));
+    return el('p', 'say', words(l.s));
+  }
+
+  // 사진 위에서 글자가 뜬다. 화면은 그대로 두고 내용만 바뀐다.
+  function sceneSay(lines) {
     return new Promise((resolve) => {
-      const pane = setMedia(el('div', 'dark spatial ' + b.layout));
-      pane.appendChild(el('div', 'wave',
-        Array.from({ length: 13 }, (_, i) => `<i style="animation-delay:${(i * 83) % 900}ms"></i>`).join('')));
-      pane.appendChild(el('div', 'cue', b.cue));
+      const box = sceneBody();
+      const text = box.appendChild(el('div', 'scene-text'));
+      const bar = box.appendChild(el('div', 'scene-foot'));
+      let i = 0, timer = null, ended = false, closed = false;
 
-      const bar = setFoot(el('div', 'timer', '<i></i>'));
-      const fill = bar.firstElementChild;
+      const step = () => {
+        if (i >= lines.length) return arrive();
+        const l = lines[i++];
+        text.appendChild(sceneNode(l));
+        timer = setTimeout(step, l.hr ? 240 : Math.min(1900, 420 + wordCount(l.s || l.b || l.w || '') * 46));
+      };
+      const flush = () => {
+        clearTimeout(timer);
+        while (i < lines.length) text.appendChild(sceneNode(lines[i++]));
+        arrive();
+      };
+      const arrive = () => { if (ended) return; ended = true; bar.appendChild(el('div', 'tap', '계속')); };
+      const finish = () => {
+        if (closed) return;
+        closed = true;
+        clearTimeout(timer);
+        removeEventListener('keydown', onGo, true);
+        removeEventListener('click', onGo, true);
+        resolve();
+      };
+      const onGo = (e) => {
+        if (e.type === 'keydown') {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+        }
+        if (!ended) flush(); else finish();
+      };
+      addEventListener('keydown', onGo, true);
+      addEventListener('click', onGo, true);
+      step();
+    });
+  }
 
-      const holder = b.layout === 'center' ? pane.appendChild(el('div', 'center-row')) : pane;
+  // 소리가 난 쪽에 선택지를 놓는다. 고르면 그 자리에서 다음으로 넘어간다.
+  function sceneBeat(b, seconds) {
+    return new Promise((resolve) => {
+      const box = sceneBody();
+      const text = box.appendChild(el('div', 'scene-text'));
+      text.appendChild(el('div', 'say beat', b.cue));
+
+      const bar = box.appendChild(el('div', 'scene-foot'));
+      const timerEl = bar.appendChild(el('div', 'timer', '<i></i>'));
+      const fill = timerEl.firstElementChild;
+
+      const holder = b.layout === 'center' ? text.appendChild(el('div', 'center-row')) : box;
       const btns = b.opts.map((o, i) => {
         const n = holder.appendChild(el('button', 'dopt' + (o.pos ? ' p-' + o.pos : '')));
         n.innerHTML = `<span class="dtext">${esc(o.label)}</span>`;
@@ -375,7 +453,7 @@
       const hold = () => {
         clearTimeout(timer);
         left = Math.max(300, left - (Date.now() - since));
-        const pct = (fill.getBoundingClientRect().width / bar.getBoundingClientRect().width) * 100;
+        const pct = (fill.getBoundingClientRect().width / timerEl.getBoundingClientRect().width) * 100;
         fill.style.transition = 'none';
         fill.style.width = pct + '%';
       };
@@ -386,12 +464,12 @@
         done = true;
         clearTimeout(timer);
         document.removeEventListener('visibilitychange', onVis);
-        foot.innerHTML = '';
+        timerEl.remove();
         const ok = idx === b.right;
         btns.forEach((n, i) => { n.disabled = true; if (i !== idx) n.classList.add('faded'); });
         const mark = el('span', 'hit ' + (ok ? 'ok' : 'no'), ok ? S.act6.hit : S.act6.miss);
-        (idx >= 0 ? btns[idx] : pane).appendChild(mark);
-        setTimeout(() => resolve(idx), 620);
+        (idx >= 0 ? btns[idx] : text).appendChild(mark);
+        setTimeout(() => resolve(idx), 700);
       };
 
       document.addEventListener('visibilitychange', onVis);
@@ -473,7 +551,7 @@
       input.onkeydown = (e) => { if (e.key === 'Enter') go(); };
     });
     state.name = input.value.trim().slice(0, 24);
-    foot.innerHTML = '';
+    opts.innerHTML = '';
     addLine(el('p', 'say whisper', `장부에 「${esc(state.name)}」이라고 적힌다.`));
   }
 
@@ -609,7 +687,7 @@
         g.disabled = i.disabled = true;
         ta.disabled = true;
         const out = { v, reason: ta.value.trim() };
-        foot.innerHTML = '';
+        opts.innerHTML = '';
         resolve(out);
       };
       g.onclick = pick('guilty');
@@ -674,24 +752,24 @@
     }
   }
 
-  /* 6장 — 어둠 */
+  /* 7장 — 어둠. 여기서는 화면을 통째로 쓴다. */
   async function act6() {
     await say(S.act6.open);
-    if (S.act6.img) { plateCard(S.act6.img); await wait(1800); }
-    await say(S.act6.seen);
-    document.body.classList.add('blind');
+
+    sceneOpen(S.act6.img);
+    await sceneSay(S.act6.seen);
+    scene.classList.add('dim');
+    await wait(1500);
+
     for (const b of S.act6.beats) {
-      const pick = await blindBeat(b, 7);
-      if (pick === b.right) {
-        await say([{ b: b.win }]);
-      } else {
-        state.hits.push(b.hurt);
-        await say([{ s: b.lose }]);
-      }
+      const pick = await sceneBeat(b, 7);
+      if (pick === b.right) await sceneSay([{ b: b.win }]);
+      else { state.hits.push(b.hurt); await sceneSay([{ s: b.lose }]); }
     }
+
     flash();
-    document.body.classList.remove('blind');
-    await say(S.act6.end);
+    await sceneSay(S.act6.end);
+    sceneClose();
   }
 
   function flash() {
@@ -701,6 +779,7 @@
 
   /* 8장 — 체포. 그리고 수첩. */
   async function act7() {
+    if (state.chased) plateCard('img/arrest.jpg');
     await say(state.chased ? S.act7.openChase : S.act7.openStay);
     await say(state.humiliation >= 6 ? S.act7.proud : S.act7.plain);
 
@@ -728,7 +807,7 @@
     const ok = row.appendChild(el('button', 'btn', S.act7.tearBtn));
     await new Promise((r) => { ok.onclick = r; });
     [...list.children].forEach((c) => { c.onclick = null; });
-    foot.innerHTML = '';
+    opts.innerHTML = '';
 
     state.torn = state.pages.filter((pg) => tear.has(pg));
     await say(state.torn.length ? S.act7.found : S.act7.kept);
@@ -757,7 +836,7 @@
       });
       const said = input.value.trim();
       answers.push(said);
-      foot.innerHTML = '';
+      opts.innerHTML = '';
       addLine(el('div', 'said s-me', `<span class="who">나</span>${esc(said || '……')}`));
     }
     return answers;
@@ -795,7 +874,7 @@
       skip.onclick = () => r('');
       input.onkeydown = (e) => { if (e.key === 'Enter') ok.onclick(); };
     });
-    foot.innerHTML = '';
+    opts.innerHTML = '';
 
     // 복면
     const hood = document.body.appendChild(el('div', 'hood'));
