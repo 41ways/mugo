@@ -12,7 +12,6 @@
 
   const S = window.STORY, PLATES = window.PLATES;
   const stage = document.getElementById('stage');
-  const media = document.getElementById('media');   // 사진·조서 — 위
   const flow = document.getElementById('flow');     // 글자 — 가운데, 위에서 아래로
   const opts = document.getElementById('opts');     // 선택지 — 계속 버튼 위
   const tapslot = document.getElementById('tapslot'); // 계속 — 자리는 늘 비어 있어도 지킨다
@@ -52,17 +51,31 @@
   // 글자는 위에서 아래로 쌓이고, 아래에 닿으려 하면 그 줄부터 새 장으로 넘어간다.
   function addLine(n) {
     flow.appendChild(n);
-    if (flow.scrollHeight > flow.clientHeight + 1) {
+    return n;
+  }
+  // 넘길 때가 됐는지. 화면 높이를 아직 못 재는 순간이 있어서, 못 재면 계산으로 대신한다.
+  // (프레임을 기다리면 탭이 가려져 있을 때 영영 안 돌아온다.)
+  function overflows() {
+    const avail = flow.clientHeight > 40
+      ? flow.clientHeight
+      : Math.max(160, stage.clientHeight - opts.offsetHeight - tapslot.offsetHeight - 72);
+    return flow.scrollHeight > avail + 1;
+  }
+
+  // 사진·조서도 글과 같은 흐름에 놓는다. 읽던 자리 다음에 나와야 읽기 편하다.
+  async function addBlock(n) {
+    flow.appendChild(n);
+    if (overflows()) {
       n.remove();
-      flow.innerHTML = '';
+      await turn(false);
       flow.appendChild(n);
     }
     return n;
   }
-  function setMedia(n) { media.innerHTML = ''; if (n) media.appendChild(n); return n; }
+  function setMedia(n) { if (n) flow.appendChild(n); return n; }
   function setFoot(n) { opts.innerHTML = ''; if (n) opts.appendChild(n); return n; }
   function setTap(n) { tapslot.innerHTML = ''; if (n) tapslot.appendChild(n); return n; }
-  function wipe() { media.innerHTML = ''; flow.innerHTML = ''; opts.innerHTML = ''; tapslot.innerHTML = ''; }
+  function wipe() { flow.innerHTML = ''; opts.innerHTML = ''; tapslot.innerHTML = ''; }
 
   // 한 낱말씩 떠오르게. 줄 전체가 통째로 튀어나오면 딱딱하다.
   function words(text, from = 0) {
@@ -102,73 +115,87 @@
 
   /* ── 서술 ───────────────────────────────────────────── */
 
-  // 한 덩어리를 한 박자씩 띄운다. 도중에 누르면 남은 줄이 한꺼번에 나온다.
-  function say(lines, o = {}) {
+  // 한 박자 쉰다. 그동안 누르면 바로 다음 줄로 넘어간다.
+  function beat(ms) {
     return new Promise((resolve) => {
-      if (lines.some((l) => l.c)) wipe();
-      let i = 0, timer = null, ended = false, closed = false;
-
-      const node = (l) => {
-        if (l.c) return el('div', 'chapter', words(l.c));
-        if (l.hr) return el('hr', 'hr');
-        if (l.who) return el('div', 'said ' + (SPEAKER[l.who] || 's-etc'),
-          `<span class="who">${esc(l.who)}</span>${words(l.s)}`);
-        if (l.b) return el('p', 'say beat', words(l.b));
-        if (l.w) return el('p', 'say whisper', words(l.w));
-        return el('p', 'say', words(l.s));
-      };
-      // 낱말이 다 떠오를 때까지 기다렸다가 다음 줄로 넘어간다.
-      const pace = (l) => l.hr ? 240 : Math.min(1900, 420 + wordCount(l.s || l.c || '') * 46);
-
-      const step = () => {
-        if (i >= lines.length) return arrive();
-        const l = lines[i++];
-        addLine(node(l));
-        timer = setTimeout(step, pace(l));
-      };
-      const flush = () => {
-        clearTimeout(timer);
-        while (i < lines.length) addLine(node(lines[i++]));
-        arrive();
-      };
-      const arrive = () => {
-        if (ended) return;
-        ended = true;
-        if (o.silent) return finish();
-        setTap(el('div', 'tap', o.label || '계속'));
-      };
-      const finish = () => {
-        if (closed) return;
-        closed = true;
-        clearTimeout(timer);
-        removeEventListener('keydown', onGo, true);
-        removeEventListener('click', onGo, true);
-        if (!o.silent) tapslot.innerHTML = '';
+      let done = false;
+      const fin = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(t);
+        removeEventListener('click', onClick, true);
+        removeEventListener('keydown', onKey, true);
         resolve();
       };
-      const onGo = (e) => {
+      const onClick = () => fin();
+      const onKey = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fin(); } };
+      const t = setTimeout(fin, ms);
+      addEventListener('click', onClick, true);
+      addEventListener('keydown', onKey, true);
+    });
+  }
+
+  // 화면이 실제로 넘어갈 때만 「계속」이 뜬다. 그 외에는 글이 저절로 흐른다.
+  function turn(full) {
+    return new Promise((resolve) => {
+      if (!flow.children.length) {
+        if (full) wipe();
+        resolve();
+        return;
+      }
+      setTap(el('div', 'tap', '계속'));
+      const go = (e) => {
         if (e.type === 'keydown') {
           if (e.key !== 'Enter' && e.key !== ' ') return;
           e.preventDefault();
         }
-        if (!ended) flush();
-        else finish();
+        removeEventListener('keydown', go, true);
+        removeEventListener('click', go, true);
+        tapslot.innerHTML = '';
+        if (full) { wipe(); } else {
+          const keep = [...flow.querySelectorAll('.sticky')];
+          flow.innerHTML = '';
+          keep.forEach((k) => flow.appendChild(k));
+        }
+        resolve();
       };
-
-      if (!o.silent) {
-        addEventListener('keydown', onGo, true);
-        addEventListener('click', onGo, true);
-      }
-      step();
+      addEventListener('keydown', go, true);
+      addEventListener('click', go, true);
     });
   }
 
-  /* ── 선택 ───────────────────────────────────────────── */
+  const lineNode = (l) => {
+    if (l.c) return el('div', 'chapter', words(l.c));
+    if (l.hr) return el('hr', 'hr');
+    if (l.who) return el('div', 'said ' + (SPEAKER[l.who] || 's-etc'),
+      `<span class="who">${esc(l.who)}</span>${words(l.s)}`);
+    if (l.b) return el('p', 'say beat', words(l.b));
+    if (l.w) return el('p', 'say whisper', words(l.w));
+    return el('p', 'say', words(l.s));
+  };
+  const pace = (l) => l.hr ? 260 : Math.min(2000, 480 + wordCount(l.s || l.c || l.b || l.w || '') * 52);
+
+  // 글은 위에서 아래로 흐르고, 아래에 닿으면 그때 「계속」이 뜬다.
+  async function say(lines, o = {}) {
+    if (lines.some((l) => l.c)) await turn(true);
+    for (const l of lines) {
+      const n = lineNode(l);
+      flow.appendChild(n);
+      if (overflows()) {
+        n.remove();
+        await turn(false);
+        flow.appendChild(n);
+      }
+      await beat(pace(l));
+    }
+  }
 
   function choose(prompt, choices) {
     return new Promise((resolve) => {
-      if (prompt) addLine(el('p', 'say q', words(prompt)));
-      const list = setFoot(el('div', 'opts'));
+      const box = setFoot(el('div'));
+      box.style.cssText = 'display:flex;flex-direction:column;gap:9px';
+      if (prompt) box.appendChild(el('p', 'ask', words(prompt)));
+      const list = box.appendChild(el('div', 'opts'));
       choices.forEach((o, idx) => {
         const label = typeof o === 'string' ? o : o.label;
         const cost = (typeof o === 'object' && o.cost != null)
@@ -230,8 +257,9 @@
 
       addLine(el('p', 'say whisper', words(cfg.lead)));
 
-      const pane = setMedia(el('div'));
+      const pane = el('div', 'sticky');
       pane.style.cssText = 'display:flex;flex-direction:column;gap:9px;min-height:0';
+      flow.appendChild(pane);
       const frame = pane.appendChild(el('div', 'plate' + (plate.img ? ' photo' : ''),
         plate.img ? `<img src="${plate.img}" alt="" decoding="async">` : plate.svg));
       const hint = pane.appendChild(el('div', 'hint'));
@@ -267,6 +295,7 @@
         opts.innerHTML = '';
         slow(false);
         stage.classList.remove('look');
+        pane.classList.remove('sticky');
         addLine(el('p', 'say whisper', words(cfg.done)));
         resolve(found);
       };
@@ -282,8 +311,10 @@
     addLine(el('p', 'say whisper', esc(cfg.lead)));
     let perfect = true;
     for (const q of cfg.questions) {
-      const qLine = addLine(el('p', 'say q', esc(q.q)));
-      const list = setFoot(el('div', 'opts'));
+      const box = setFoot(el('div'));
+      box.style.cssText = 'display:flex;flex-direction:column;gap:9px';
+      box.appendChild(el('p', 'ask', words(q.q)));
+      const list = box.appendChild(el('div', 'opts'));
       await new Promise((resolve) => {
         q.opts.forEach((label, idx) => {
           const b = list.appendChild(el('button', 'opt', esc(label)));
@@ -296,9 +327,7 @@
               perfect = false;
               b.classList.add('wrong');
               b.disabled = true;
-              if (!qLine.nextElementSibling || !qLine.nextElementSibling.classList.contains('err')) {
-                addLine(el('p', 'err', esc(q.wrong)));
-              }
+              if (!box.querySelector('.err')) box.appendChild(el('p', 'err', esc(q.wrong)));
             }
           };
         });
@@ -312,7 +341,7 @@
   // 돌아왔을 때 이미 지나 있으면 그건 플레이어 잘못이 아니다.
   function timed(cueHtml, choices, seconds, dark, img) {
     return new Promise((resolve) => {
-      if (img) setMedia(el('div', 'plate photo', `<img src="${img}" alt="" decoding="async">`));
+      if (img) flow.appendChild(el('div', 'plate photo', `<img src="${img}" alt="" decoding="async">`));
       addLine(el('p', 'say', cueHtml));
 
       const box = setFoot(el('div'));
@@ -480,15 +509,15 @@
 
   // 장면 사진 한 장. 이 밑으로 글자가 흐른다.
   function plateCard(img) {
-    return setMedia(el('div', 'plate photo', `<img src="${img}" alt="" decoding="async">`));
+    return addBlock(el('div', 'plate photo', `<img src="${img}" alt="" decoding="async">`));
   }
 
   function fileCard(head, itemsHtml, stamp, extra) {
-    const f = setMedia(el('div', 'file' + (extra ? ' ' + extra : '')));
+    const f = el('div', 'file' + (extra ? ' ' + extra : ''));
     f.appendChild(el('h4', null, esc(head)));
     f.appendChild(el('div', null, itemsHtml));
     if (stamp) f.appendChild(el('div', 'stamp', esc(stamp)));
-    return f;
+    return addBlock(f);
   }
 
   /* ── 서버 ───────────────────────────────────────────── */
@@ -597,7 +626,7 @@
 
     const E = S.act2.evidence;
     const torn = (c.clues && c.clues.length) ? c.clues : [];
-    fileCard(E.head,
+    await fileCard(E.head,
       `<ul>` +
       `<li>${E.weapon[c.caught === 'house' ? 'house' : 'dock']}</li>` +
       `<li>${E.ticket}</li>` +
@@ -609,7 +638,7 @@
 
     if (torn.length) {
       const T = S.act2.tamper;
-      fileCard(T.head,
+      await fileCard(T.head,
         `<p style="margin:0 0 13px;color:#6f6552;font-size:13.5px">${esc(T.lead)}</p>` +
         torn.map((x) => `<p class="memo">— ${esc(x)}</p>`).join(''), null, 'alarm');
       await wait(1400);
@@ -779,7 +808,7 @@
 
   /* 8장 — 체포. 그리고 수첩. */
   async function act7() {
-    if (state.chased) plateCard('img/arrest.jpg');
+    if (state.chased) await plateCard('img/arrest.jpg');
     await say(state.chased ? S.act7.openChase : S.act7.openStay);
     await say(state.humiliation >= 6 ? S.act7.proud : S.act7.plain);
 
@@ -788,7 +817,7 @@
     await say(S.act7.pocket);
 
     addLine(el('p', 'say q', esc(S.act7.tearLead)));
-    const list = setMedia(el('div', 'pages'));
+    const list = addLine(el('div', 'pages'));
     const bar = setFoot(el('div'));
     bar.style.cssText = 'display:flex;flex-direction:column;gap:8px';
     const tear = new Set();
@@ -909,7 +938,7 @@
 
     // 유치장. 사흘 전 당신이 밖에서 들여다보던 그 문이다.
     await say(S.act9.cellDoor);
-    plateCard(S.act9.cellIn);
+    await plateCard(S.act9.cellIn);
     await wait(1600);
     await say(S.act9.cellShut);
     await say(S.act9.lastVisit);
@@ -943,7 +972,7 @@
     }
 
     clear();
-    setMedia(el('div', 'verdictbig ' + (r.verdict === 'guilty' ? 'guilty' : 'innocent'),
+    addLine(el('div', 'verdictbig ' + (r.verdict === 'guilty' ? 'guilty' : 'innocent'),
       r.verdict === 'guilty' ? '유죄' : '무죄'));
 
     await say(r.verdict === 'guilty' ? [
@@ -956,7 +985,7 @@
       { s: '아무도 사과하지 않았다. 당신은 그날 밤 뒷문으로 나왔다.' },
     ], { silent: true });
 
-    if (r.reason) fileCard('탐정의 소견', `<p class="memo">${esc(r.reason)}</p>`);
+    if (r.reason) await fileCard('탐정의 소견', `<p class="memo">${esc(r.reason)}</p>`);
     backLink();
   }
 

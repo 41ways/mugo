@@ -68,17 +68,16 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
   display:flex; flex-direction:column; gap:clamp(10px,1.8vh,20px);
   overflow:hidden;
 }
-#media{flex:none; display:flex; flex-direction:column; gap:10px; min-height:0}
-#media:empty{display:none}
-#flow{flex:1 1 auto; min-height:0; overflow:hidden}
+#flow{flex:1 1 0; min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:0}
+#flow > *{flex:none}
+.plate, .file, .pages{margin-block:clamp(8px,1.6vh,16px)}
 #foot{flex:none; display:flex; flex-direction:column; gap:clamp(10px,1.7vh,18px)}
 /* 선택지는 계속 버튼 자리를 침범하지 않는다 */
 #opts{display:flex; flex-direction:column; gap:8px}
 #opts:empty{display:none}
 #tapslot{flex:none; min-height:46px; display:flex; align-items:center}
-/* 관찰 화면 — 사진을 크게 쓰고, 글자와 함께 가운데로 내린다 */
-#stage.look #media{margin-top:auto}
-#stage.look #flow{flex:0 1 auto; margin-bottom:auto}
+/* 관찰 화면 — 사진을 크게 쓰고 가운데로 모은다 */
+#stage.look #flow{display:flex; flex-direction:column; justify-content:center; gap:4px}
 #stage.look .plate.photo{max-width:min(100%, 95dvh)}
 /* 제목·판결처럼 화면을 다 쓰는 것들 */
 #stage.mid #flow{display:flex; flex-direction:column; justify-content:center}
@@ -516,3 +515,9 @@ body.slow .plate.photo img{filter:contrast(1.04) brightness(.96)}
 .scene-in .p-up{top:clamp(46px,12vh,110px)}
 .scene-in .p-down{bottom:clamp(64px,14vh,120px)}
 .scene-in button.dopt{font-size:clamp(15px,4vw,18px); text-shadow:0 2px 18px rgba(0,0,0,.9)}
+
+/* 선택지 바로 위에 붙는 질문 — 무엇을 고르는지가 안 보이면 안 된다 */
+p.ask{
+  margin:0 0 2px; color:var(--lamp); font-size:clamp(15px,4vw,16.5px); line-height:1.7;
+  padding-left:12px; border-left:2px solid rgba(216,162,74,.45);
+}
