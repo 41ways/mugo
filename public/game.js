@@ -12,6 +12,9 @@
 
   const S = window.STORY, PLATES = window.PLATES;
   const stage = document.getElementById('stage');
+  const media = document.getElementById('media');   // 사진·조서 — 위
+  const flow = document.getElementById('flow');     // 글자 — 가운데, 위에서 아래로
+  const foot = document.getElementById('foot');     // 계속·선택지 — 아래, 자리 고정
   const slowbar = document.getElementById('slowbar');
 
   /* ── 잡동사니 ───────────────────────────────────────── */
@@ -38,27 +41,28 @@
   const esc = (s) => String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  function put(node) {
-    stage.appendChild(node);
-    return node;
-  }
-  // 화면 밖으로 밀려난 옛 줄을 걷어낸다. 페이지가 길어지지 않게.
-  // 단, 아직 누를 수 있는 것이 들어 있는 덩어리는 건드리지 않는다.
-  function fit() {
-    for (let guard = 0; guard < 80; guard++) {
-      if (stage.scrollHeight <= stage.clientHeight + 2) break;
-      const first = stage.firstElementChild;
-      if (!first || stage.children.length < 2) break;
-      if (first.querySelector('button:not(:disabled), input:not([disabled]), textarea:not([disabled]), .hot:not(.done)')) break;
-      first.remove();
-    }
-    stage.scrollTop = stage.scrollHeight;
-  }
-  const toBottom = fit;   // 예전 이름으로 부르는 자리가 많다
+  // 누가 말하는지 한눈에 보이게. 「나」는 반대쪽에 붙고 색이 다르다.
+  const SPEAKER = { '나': 's-me', '켈러 소장': 's-kel', '남자': 's-man' };
 
-  function clear() {
-    stage.innerHTML = '';
+  // 심문에서 받는 답. 길게 답하는 사람은 다들 거짓말을 하더라는 게 켈러의 지론이다.
+  const ANSWER_MAX = 10;
+
+  // 글자는 위에서 아래로 쌓이고, 아래에 닿으려 하면 그 줄부터 새 장으로 넘어간다.
+  function addLine(n) {
+    flow.appendChild(n);
+    if (flow.scrollHeight > flow.clientHeight + 1) {
+      n.remove();
+      flow.innerHTML = '';
+      flow.appendChild(n);
+    }
+    return n;
   }
+  function setMedia(n) { media.innerHTML = ''; if (n) media.appendChild(n); return n; }
+  function setFoot(n) { foot.innerHTML = ''; if (n) foot.appendChild(n); return n; }
+  function wipe() { media.innerHTML = ''; flow.innerHTML = ''; foot.innerHTML = ''; }
+  const put = (node) => addLine(node);
+  const toBottom = () => {};   // 이제 스크롤하지 않는다
+  const clear = wipe;
 
   const state = {
     name: '',
@@ -84,64 +88,52 @@
 
   /* ── 서술 ───────────────────────────────────────────── */
 
-  // 한 덩어리를 한 박자씩 띄운다.
-  // 도중에 누르면 남은 줄이 한꺼번에 나오고, 한 번 더 누르면 다음으로 간다.
-  // 급한 사람을 기다리게 하면 분위기가 아니라 짜증이 된다.
+  // 한 덩어리를 한 박자씩 띄운다. 도중에 누르면 남은 줄이 한꺼번에 나온다.
   function say(lines, opts = {}) {
     return new Promise((resolve) => {
-      if (lines.some((l) => l.c)) clear();
-      const box = put(el('div', 'step'));
+      if (lines.some((l) => l.c)) wipe();
       let i = 0, timer = null, ended = false, closed = false;
 
       const node = (l) => {
         let n;
         if (l.c) n = el('div', 'chapter', esc(l.c));
         else if (l.hr) n = el('hr', 'hr');
-        else if (l.who) n = el('div', 'said', `<span class="who">${esc(l.who)}</span>${esc(l.s)}`);
+        else if (l.who) n = el('div', 'said ' + (SPEAKER[l.who] || 's-etc'),
+          `<span class="who">${esc(l.who)}</span>${esc(l.s)}`);
         else if (l.b) n = el('p', 'say beat', esc(l.b));
         else if (l.w) n = el('p', 'say whisper', esc(l.w));
         else n = el('p', 'say', esc(l.s));
-        n.style.animation = 'rise .55s cubic-bezier(.2,.7,.3,1) both';
+        n.style.animation = 'rise .5s cubic-bezier(.2,.7,.3,1) both';
         return n;
       };
-      const pace = (l) => l.c ? 620 : l.hr ? 240 : Math.min(1150, 340 + String(l.s || '').length * 11);
+      const pace = (l) => l.c ? 560 : l.hr ? 220 : Math.min(1100, 320 + String(l.s || '').length * 11);
 
       const step = () => {
         if (i >= lines.length) return arrive();
         const l = lines[i++];
-        box.appendChild(node(l));
-        toBottom();
+        addLine(node(l));
         timer = setTimeout(step, pace(l));
       };
-
-      // 남은 줄을 한꺼번에 쏟는다
       const flush = () => {
         clearTimeout(timer);
-        while (i < lines.length) box.appendChild(node(lines[i++]));
-        toBottom();
+        while (i < lines.length) addLine(node(lines[i++]));
         arrive();
       };
-
-      // 다 나왔다. 이제 넘김 표시를 띄운다.
       const arrive = () => {
         if (ended) return;
         ended = true;
         if (opts.silent) return finish();
-        box.appendChild(el('div', 'tap', opts.label || '계속 ▸'));
-        toBottom();
+        setFoot(el('div', 'tap', opts.label || '계속'));
       };
-
       const finish = () => {
         if (closed) return;
         closed = true;
         clearTimeout(timer);
         removeEventListener('keydown', onGo, true);
         removeEventListener('click', onGo, true);
-        const tap = box.querySelector('.tap');
-        if (tap) tap.remove();
-        resolve(box);
+        if (!opts.silent) foot.innerHTML = '';
+        resolve();
       };
-
       const onGo = (e) => {
         if (e.type === 'keydown') {
           if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -163,12 +155,12 @@
 
   function choose(prompt, opts) {
     return new Promise((resolve) => {
-      const box = put(el('div', 'step'));
-      if (prompt) box.appendChild(el('p', 'say q', esc(prompt)));
-      const list = box.appendChild(el('div', 'opts'));
+      if (prompt) addLine(el('p', 'say q', esc(prompt)));
+      const list = setFoot(el('div', 'opts'));
       opts.forEach((o, idx) => {
         const label = typeof o === 'string' ? o : o.label;
-        const cost = (typeof o === 'object' && o.cost != null) ? `<span class="cost">${o.cost ? '−' + o.cost + ' 박동' : '즉시'}</span>` : '';
+        const cost = (typeof o === 'object' && o.cost != null)
+          ? `<span class="cost">${o.cost ? '−' + o.cost : '즉시'}</span>` : '';
         const b = list.appendChild(el('button', 'opt', cost + esc(label)));
         b.disabled = typeof o === 'object' && o.disabled;
         b.onclick = () => {
@@ -177,7 +169,6 @@
           resolve(idx);
         };
       });
-      toBottom();
     });
   }
 
@@ -225,24 +216,22 @@
       const found = [];
       slow(true);
 
-      const box = put(el('div', 'step'));
-      box.appendChild(el('p', 'say whisper', esc(cfg.lead)));
+      addLine(el('p', 'say whisper', esc(cfg.lead)));
 
-      const frame = box.appendChild(el('div', 'plate' + (plate.img ? ' photo' : ''),
-        plate.img
-          ? `<img src="${plate.img}" alt="" loading="eager" decoding="async">`
-          : plate.svg));
-      const hint = box.appendChild(el('div', 'hint'));
+      const pane = setMedia(el('div'));
+      pane.style.cssText = 'display:flex;flex-direction:column;gap:9px;min-height:0';
+      const frame = pane.appendChild(el('div', 'plate' + (plate.img ? ' photo' : ''),
+        plate.img ? `<img src="${plate.img}" alt="" decoding="async">` : plate.svg));
+      const hint = pane.appendChild(el('div', 'hint'));
+      const chips = pane.appendChild(el('div', 'chips'));
+
       const cap = cfg.max || plate.spots.length;
-      const chips = box.appendChild(el('div', 'chips'));
-      const foot = box.appendChild(el('div', 'row'));
-      const btn = foot.appendChild(el('button', 'btn', '충분하다 ▸'));
-      btn.style.display = 'none';
+      const btn = el('button', 'btn', '충분하다');
 
       const refresh = () => {
         hint.innerHTML = `<span>관찰 <b>${found.length}</b> / ${cap}</span>` +
           `<span>${found.length < cfg.need ? '아직 이르다' : '언제든 멈출 수 있다'}</span>`;
-        btn.style.display = found.length >= cfg.need ? '' : 'none';
+        setFoot(found.length >= cfg.need ? btn : null);
       };
 
       plate.spots.forEach((sp) => {
@@ -263,27 +252,25 @@
 
       const finish = () => {
         [...frame.querySelectorAll('.hot')].forEach((h) => { h.disabled = true; h.classList.add('done'); });
-        btn.remove();
+        foot.innerHTML = '';
         slow(false);
-        say([{ w: cfg.done }], { silent: true });
+        addLine(el('p', 'say whisper', esc(cfg.done)));
         resolve(found);
       };
 
       btn.onclick = finish;
       refresh();
-      toBottom();
     });
   }
 
   /* ── 추론 (틀리면 티가 난다) ────────────────────────── */
 
   async function deduce(cfg) {
-    await say([{ w: cfg.lead }], { silent: true });
+    addLine(el('p', 'say whisper', esc(cfg.lead)));
     let perfect = true;
     for (const q of cfg.questions) {
-      const box = put(el('div', 'step'));
-      box.appendChild(el('p', 'say q', esc(q.q)));
-      const list = box.appendChild(el('div', 'opts'));
+      const qLine = addLine(el('p', 'say q', esc(q.q)));
+      const list = setFoot(el('div', 'opts'));
       await new Promise((resolve) => {
         q.opts.forEach((label, idx) => {
           const b = list.appendChild(el('button', 'opt', esc(label)));
@@ -296,38 +283,32 @@
               perfect = false;
               b.classList.add('wrong');
               b.disabled = true;
-              if (!box.querySelector('.err')) box.appendChild(el('p', 'err', esc(q.wrong)));
-              toBottom();
+              if (!qLine.nextElementSibling || !qLine.nextElementSibling.classList.contains('err')) {
+                addLine(el('p', 'err', esc(q.wrong)));
+              }
             }
           };
         });
-        toBottom();
       });
+      foot.innerHTML = '';
     }
     return perfect;
   }
-
-  /* ── 시간 제한 선택 ─────────────────────────────────── */
 
   // 제한 시간. 탭을 가리면 멈춘다 — 브라우저가 타이머를 늦춰버려서,
   // 돌아왔을 때 이미 지나 있으면 그건 플레이어 잘못이 아니다.
   function timed(cueHtml, opts, seconds, dark, img) {
     return new Promise((resolve) => {
-      const box = put(el('div', 'step'));
-      if (img) box.appendChild(el('div', 'plate photo', `<img src="${img}" alt="">`));
-      const pane = box.appendChild(el('div', dark ? 'dark' : ''));
-      if (dark) {
-        pane.appendChild(el('div', 'wave',
-          Array.from({ length: 13 }, (_, i) => `<i style="animation-delay:${(i * 83) % 900}ms"></i>`).join('')));
-      }
-      pane.appendChild(el('div', dark ? 'cue' : 'say', cueHtml));
+      if (img) setMedia(el('div', 'plate photo', `<img src="${img}" alt="" decoding="async">`));
+      addLine(el('p', 'say', cueHtml));
 
+      const box = setFoot(el('div'));
+      box.style.cssText = 'display:flex;flex-direction:column;gap:10px';
       const bar = box.appendChild(el('div', 'timer', '<i></i>'));
       const fill = bar.firstElementChild;
       const list = box.appendChild(el('div', 'opts'));
 
       let left = seconds * 1000, since = 0, timer = null, done = false;
-
       const run = () => {
         since = Date.now();
         timer = setTimeout(() => end(-1), left);
@@ -360,7 +341,6 @@
       });
 
       document.addEventListener('visibilitychange', onVis);
-      toBottom();
       if (document.hidden) fill.style.width = '100%';
       else requestAnimationFrame(run);
     });
@@ -369,13 +349,12 @@
   // 어둠 속에서는 방향이 곧 정보다. 그래서 선택지를 소리가 난 쪽에 놓는다.
   function blindBeat(b, seconds) {
     return new Promise((resolve) => {
-      const box = put(el('div', 'step'));
-      const pane = box.appendChild(el('div', 'dark spatial ' + b.layout));
+      const pane = setMedia(el('div', 'dark spatial ' + b.layout));
       pane.appendChild(el('div', 'wave',
         Array.from({ length: 13 }, (_, i) => `<i style="animation-delay:${(i * 83) % 900}ms"></i>`).join('')));
       pane.appendChild(el('div', 'cue', b.cue));
 
-      const bar = box.appendChild(el('div', 'timer', '<i></i>'));
+      const bar = setFoot(el('div', 'timer', '<i></i>'));
       const fill = bar.firstElementChild;
 
       const holder = b.layout === 'center' ? pane.appendChild(el('div', 'center-row')) : pane;
@@ -407,54 +386,31 @@
         done = true;
         clearTimeout(timer);
         document.removeEventListener('visibilitychange', onVis);
-        bar.remove();
+        foot.innerHTML = '';
         const ok = idx === b.right;
-        btns.forEach((n, i) => {
-          n.disabled = true;
-          if (i !== idx) n.classList.add('faded');
-        });
+        btns.forEach((n, i) => { n.disabled = true; if (i !== idx) n.classList.add('faded'); });
         const mark = el('span', 'hit ' + (ok ? 'ok' : 'no'), ok ? S.act6.hit : S.act6.miss);
         (idx >= 0 ? btns[idx] : pane).appendChild(mark);
         setTimeout(() => resolve(idx), 620);
       };
 
       document.addEventListener('visibilitychange', onVis);
-      toBottom();
       if (document.hidden) fill.style.width = '100%';
       else requestAnimationFrame(run);
     });
   }
 
-  /* ── 조서·수첩 렌더 ─────────────────────────────────── */
+  // 장면 사진 한 장. 이 밑으로 글자가 흐른다.
+  function plateCard(img) {
+    return setMedia(el('div', 'plate photo', `<img src="${img}" alt="" decoding="async">`));
+  }
 
   function fileCard(head, itemsHtml, stamp, extra) {
-    const f = put(el('div', 'step')).appendChild(el('div', 'file' + (extra ? ' ' + extra : '')));
+    const f = setMedia(el('div', 'file' + (extra ? ' ' + extra : '')));
     f.appendChild(el('h4', null, esc(head)));
     f.appendChild(el('div', null, itemsHtml));
     if (stamp) f.appendChild(el('div', 'stamp', esc(stamp)));
-    toBottom();
     return f;
-  }
-
-  // 찢긴 장에서 떠낸 것. 원문이 아니라 성격만 남는다.
-  function tornSummary(torn) {
-    if (!torn.length) return [];
-    const T = S.act2.torn;
-    const ko = ['', '한', '두', '세', '네', '다섯', '여섯', '일곱'];
-    const out = [T.count.replace('{n}', ko[torn.length] || String(torn.length))];
-    if (torn.some((p) => p.cat === 'entry')) out.push(T.entry);
-    if (torn.some((p) => p.cat === 'habit')) out.push(T.habit);
-    if (torn.length >= 4) out.push(T.many);
-    out.push(T.tail);
-    return out;
-  }
-
-  // 장면 사진 한 장만 띄운다. 관찰이 아니라 보여주기만 할 때.
-  function plateCard(img) {
-    const n = put(el('div', 'step')).appendChild(
-      el('div', 'plate photo', `<img src="${img}" alt="" decoding="async">`));
-    toBottom();
-    return n;
   }
 
   /* ── 서버 ───────────────────────────────────────────── */
@@ -476,18 +432,19 @@
   /* ═════════════════════════ 진행 ═════════════════════════ */
 
   async function titleScreen() {
-    clear();
-    const box = put(el('div', 'step title'));
+    wipe();
+    stage.classList.add('mid');
+    const box = addLine(el('div', 'title'));
     box.innerHTML =
       `<h1 class="han">무고</h1>` +
       `<p class="sub">誣告 · 無辜</p>` +
       `<p class="gloss">안개가 들어오는 밤마다 사람이 하나씩 줄었다. 이번이 셋째다.</p>` +
       `<p class="gloss">회항에는 판사가 없다. 마을에 들어온 탐정의 <b>한마디가 판결이 된다</b>.</p>`;
-    const row = box.appendChild(el('div', 'row'));
+    const row = setFoot(el('div', 'row'));
     row.style.justifyContent = 'center';
     const go = row.appendChild(el('button', 'btn', '기차에서 내린다'));
-    row.appendChild(footerNode());
     await new Promise((r) => { go.onclick = r; });
+    stage.classList.remove('mid');
   }
 
   // 타이틀에서는 메일 얘기를 꺼내지 않는다. 그건 끝에 가서야 알 일이다.
@@ -500,7 +457,8 @@
   }
 
   async function askName() {
-    const box = put(el('div', 'step'));
+    const box = setFoot(el('div'));
+    box.style.cssText = 'display:flex;flex-direction:column;gap:9px';
     box.appendChild(el('label', 'lab', '장부에 적을 이름'));
     const input = box.appendChild(el('input'));
     input.type = 'text';
@@ -509,15 +467,14 @@
     const row = box.appendChild(el('div', 'row'));
     const ok = row.appendChild(el('button', 'btn', '적는다'));
     input.focus();
-    toBottom();
     await new Promise((r) => {
       const go = () => { if (input.value.trim()) r(); };
       ok.onclick = go;
       input.onkeydown = (e) => { if (e.key === 'Enter') go(); };
     });
     state.name = input.value.trim().slice(0, 24);
-    box.querySelector('.row').remove();
-    input.disabled = true;
+    foot.innerHTML = '';
+    addLine(el('p', 'say whisper', `장부에 「${esc(state.name)}」이라고 적힌다.`));
   }
 
   /* 0장 — 편지, 그리고 오는 길 */
@@ -603,14 +560,11 @@
 
     // 세 마디. 대답은 앞사람이 직접 쓴 것이다.
     for (let i = 0; i < 3; i++) {
-      const box = put(el('div', 'step qa'));
-      box.appendChild(el('p', 'qq', `${i + 1}. ${esc(threeQs(S.act2, c.caught)[i])}`));
-      toBottom();
+      addLine(el('p', 'qq', `${i + 1}. ${esc(threeQs(S.act2, c.caught)[i])}`));
       await wait(1250);
       const a = (c.answers[i] || '').trim();
-      box.appendChild(el('p', 'aa' + (a ? '' : ' silent'), esc(a || S.act2.silent)));
-      toBottom();
-      await wait(400);
+      addLine(el('p', 'aa' + (a ? '' : ' silent'), esc(a || S.act2.silent)));
+      await wait(500);
     }
 
     await say(S.act2.askVerdict);
@@ -628,7 +582,8 @@
 
   function verdictForm() {
     return new Promise((resolve) => {
-      const box = put(el('div', 'step'));
+      const box = setFoot(el('div'));
+      box.style.cssText = 'display:flex;flex-direction:column;gap:8px';
       box.appendChild(el('label', 'lab', '판결문 — 이 문장은 그 사람에게 그대로 간다. 짧아도 좋으니 반드시 적으시오.'));
       const ta = box.appendChild(el('textarea'));
       ta.rows = 2;
@@ -653,11 +608,12 @@
         if (!ta.value.trim()) return;
         g.disabled = i.disabled = true;
         ta.disabled = true;
-        resolve({ v, reason: ta.value.trim() });
+        const out = { v, reason: ta.value.trim() };
+        foot.innerHTML = '';
+        resolve(out);
       };
       g.onclick = pick('guilty');
       i.onclick = pick('innocent');
-      toBottom();
     });
   }
 
@@ -752,9 +708,10 @@
 
     await say(S.act7.pocket);
 
-    const box = put(el('div', 'step'));
-    box.appendChild(el('p', 'say q', esc(S.act7.tearLead)));
-    const list = box.appendChild(el('div', 'pages'));
+    addLine(el('p', 'say q', esc(S.act7.tearLead)));
+    const list = setMedia(el('div', 'pages'));
+    const bar = setFoot(el('div'));
+    bar.style.cssText = 'display:flex;flex-direction:column;gap:8px';
     const tear = new Set();
 
     state.pages.forEach((pg) => {
@@ -766,13 +723,12 @@
         count.textContent = `찢을 장 ${tear.size} / ${state.pages.length}`;
       };
     });
-    const count = box.appendChild(el('div', 'count', `찢을 장 0 / ${state.pages.length}`));
-    const row = box.appendChild(el('div', 'row'));
+    const count = bar.appendChild(el('div', 'count', `찢을 장 0 / ${state.pages.length}`));
+    const row = bar.appendChild(el('div', 'row'));
     const ok = row.appendChild(el('button', 'btn', S.act7.tearBtn));
-    toBottom();
     await new Promise((r) => { ok.onclick = r; });
     [...list.children].forEach((c) => { c.onclick = null; });
-    ok.remove();
+    foot.innerHTML = '';
 
     state.torn = state.pages.filter((pg) => tear.has(pg));
     await say(state.torn.length ? S.act7.found : S.act7.kept);
@@ -783,8 +739,9 @@
     await say(S.act8.open);
     const answers = [];
     for (let i = 0; i < 3; i++) {
-      const box = put(el('div', 'step qa'));
-      box.appendChild(el('p', 'qq', `${i + 1}. ${esc(threeQs(S.act8, state.chased ? 'dock' : 'house')[i])}`));
+      addLine(el('p', 'qq', `${i + 1}. ${esc(threeQs(S.act8, state.chased ? 'dock' : 'house')[i])}`));
+      const box = setFoot(el('div'));
+      box.style.cssText = 'display:flex;flex-direction:column;gap:8px';
       const input = box.appendChild(el('input'));
       input.type = 'text';
       input.maxLength = ANSWER_MAX;
@@ -794,14 +751,14 @@
       const row = box.appendChild(el('div', 'row'));
       const ok = row.appendChild(el('button', 'btn', i < 2 ? '대답한다' : '대답을 마친다'));
       input.focus();
-      toBottom();
       await new Promise((r) => {
         ok.onclick = r;
         input.onkeydown = (e) => { if (e.key === 'Enter') r(); };
       });
-      row.remove();
-      input.disabled = true;
-      answers.push(input.value.trim());
+      const said = input.value.trim();
+      answers.push(said);
+      foot.innerHTML = '';
+      addLine(el('div', 'said s-me', `<span class="who">나</span>${esc(said || '……')}`));
     }
     return answers;
   }
@@ -810,20 +767,20 @@
   async function act9(answers) {
     await say(S.act9.open);
 
-    const box = put(el('div', 'step'));
+    const box = setFoot(el('div'));
+    box.style.cssText = 'display:flex;flex-direction:column;gap:8px';
     box.appendChild(el('label', 'lab', '판결을 받을 주소'));
     const input = box.appendChild(el('input'));
     input.type = 'email';
     input.placeholder = 'name@example.com';
     input.autocomplete = 'email';
-    box.appendChild(el('p', 'say whisper', esc(S.act9.mailLead)));
+    addLine(el('p', 'say whisper', esc(S.act9.mailLead)));
     const err = box.appendChild(el('p', 'err'));
     err.style.display = 'none';
     const row = box.appendChild(el('div', 'row'));
     const ok = row.appendChild(el('button', 'btn', '주소를 댄다'));
     const skip = row.appendChild(el('button', 'btn ghost', '대지 않는다'));
     input.focus();
-    toBottom();
 
     const email = await new Promise((r) => {
       ok.onclick = () => {
@@ -838,8 +795,7 @@
       skip.onclick = () => r('');
       input.onkeydown = (e) => { if (e.key === 'Enter') ok.onclick(); };
     });
-    row.remove();
-    input.disabled = true;
+    foot.innerHTML = '';
 
     // 복면
     const hood = document.body.appendChild(el('div', 'hood'));
@@ -865,7 +821,7 @@
     ));
 
     if (res) {
-      const t = put(el('div', 'step')).appendChild(el('div', 'token'));
+      const t = addLine(el('div', 'token'));
       const url = location.origin + location.pathname + '?t=' + res.token;
       t.innerHTML = `판결 확인용 조서 번호<br><a href="${esc(url)}">${esc(url)}</a>`;
     }
@@ -880,9 +836,7 @@
     await say(S.act9.lastVisit);
     plateCard('img/cell.jpg');
 
-    const row2 = put(el('div', 'step')).appendChild(el('div', 'row'));
-    row2.appendChild(footerNode('주소는 판결 한 통을 보내고 나면 지워진다.'));
-    toBottom();
+    setFoot(footerNode('주소는 판결 한 통을 보내고 나면 지워진다.'));
   }
 
   /* ── 판결 확인 페이지 ───────────────────────────────── */
@@ -910,9 +864,8 @@
     }
 
     clear();
-    put(el('div', 'step')).appendChild(
-      el('div', 'verdictbig ' + (r.verdict === 'guilty' ? 'guilty' : 'innocent'),
-        r.verdict === 'guilty' ? '유죄' : '무죄'));
+    setMedia(el('div', 'verdictbig ' + (r.verdict === 'guilty' ? 'guilty' : 'innocent'),
+      r.verdict === 'guilty' ? '유죄' : '무죄'));
 
     await say(r.verdict === 'guilty' ? [
       { s: `${r.name}. 재판은 열렸고, 십일 분 걸렸다.` },
@@ -929,11 +882,10 @@
   }
 
   function backLink() {
-    const row = put(el('div', 'step')).appendChild(el('div', 'row'));
+    const row = setFoot(el('div', 'row'));
     const b = row.appendChild(el('button', 'btn', '회항으로 간다'));
     b.onclick = () => { location.href = location.pathname; };
     row.appendChild(footerNode());
-    toBottom();
   }
 
   /* ── 시작 ───────────────────────────────────────────── */

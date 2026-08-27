@@ -57,30 +57,26 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
 
 /* ── 무대 ───────────────────────────────────────────── */
 
-/* 한 장은 한 화면 안에서 끝난다. 페이지가 길어지지 않고, 오래된 줄이 위로 밀려 사라진다. */
+/* 한 화면 = 한 장.
+   위: 사진·조서   가운데: 글자(위에서 아래로)   아래: 계속·선택지 — 자리는 늘 같다.
+   글자가 아래에 닿으려 하면 그 줄부터 새 장으로 넘어간다. */
 #stage{
   position:relative; z-index:10;
   height:100vh; height:100dvh;
   max-width:760px; margin:0 auto;
-  padding:clamp(18px,4vh,42px) clamp(16px,5vw,28px) clamp(20px,4vh,40px);
-  display:flex; flex-direction:column;
-  overflow-y:auto; overscroll-behavior:contain;
-  scrollbar-width:none;
+  padding:clamp(16px,3.4vh,34px) clamp(16px,5vw,28px) clamp(14px,2.6vh,26px);
+  display:flex; flex-direction:column; gap:clamp(10px,1.8vh,20px);
+  overflow:hidden;
 }
-#stage::-webkit-scrollbar{display:none}
-/* 아래에서부터 쌓인다 */
-#stage::before{content:''; flex:none; margin-top:auto}
-#stage > *{flex:none}
-/* 제목·판결, 그리고 장면 사진이나 조서가 있는 화면은 가운데에 놓는다.
-   말만 오갈 때는 아래에서부터 올라오게 두는 편이 읽기 편하다. */
-#stage:has(.title)::after,
-#stage:has(.verdictbig)::after,
-#stage:has(.plate)::after,
-#stage:has(.file)::after{content:''; flex:none; margin-bottom:auto}
-.step{will-change:opacity}
-.step.gone{opacity:0; transition:opacity .35s}
-.step{animation:rise .7s cubic-bezier(.2,.7,.3,1) both}
-@keyframes rise{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+#media{flex:none; display:flex; flex-direction:column; gap:10px; min-height:0}
+#media:empty{display:none}
+#flow{flex:1 1 auto; min-height:0; overflow:hidden}
+#foot{
+  flex:none; min-height:58px;
+  display:flex; flex-direction:column; justify-content:flex-end; gap:8px;
+}
+/* 제목·판결처럼 화면을 다 쓰는 것들 */
+#stage.mid #flow{display:flex; flex-direction:column; justify-content:center}
 
 /* ── 제목 화면 ───────────────────────────────────────── */
 
@@ -140,7 +136,7 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
 
 /* 다음으로 넘기는 커서 */
 .tap{
-  display:inline-flex; align-items:center; gap:10px; margin-top:28px;
+  display:inline-flex; align-items:center; gap:10px; align-self:flex-start;
   padding:9px 18px 9px 20px; cursor:pointer; user-select:none;
   color:var(--lamp); font-family:var(--mono); font-size:12.5px; letter-spacing:.2em;
   background:rgba(216,162,74,.07); border:1px solid rgba(216,162,74,.42);
@@ -152,7 +148,7 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
 
 /* ── 선택지 ─────────────────────────────────────────── */
 
-.opts{display:flex; flex-direction:column; gap:7px; margin:18px 0 6px}
+.opts{display:flex; flex-direction:column; gap:7px; margin:0}
 button.opt{
   font:inherit; text-align:left; cursor:pointer; color:var(--paper);
   background:rgba(255,255,255,.017); border:1px solid var(--line);
@@ -176,12 +172,12 @@ button.opt.right{border-color:#5c7a52}
 .btn.ghost:hover{color:var(--paper); border-color:var(--faint); filter:none}
 .btn.danger{background:var(--blood); border-color:var(--blood); color:#f1dcd8}
 .btn:disabled{opacity:.3; cursor:default; filter:none}
-.row{display:flex; gap:10px; flex-wrap:wrap; margin-top:22px; align-items:center}
+.row{display:flex; gap:10px; flex-wrap:wrap; margin:0; align-items:center}
 
 /* ── 관찰 화면 ──────────────────────────────────────── */
 
 .plate{
-  position:relative; margin:20px 0 4px; border:1px solid var(--line); border-radius:3px;
+  position:relative; margin:0; border:1px solid var(--line); border-radius:3px;
   background:#08080a; overflow:hidden; touch-action:manipulation;
 }
 .plate svg{display:block; width:100%; height:auto}
@@ -202,7 +198,7 @@ button.opt.right{border-color:#5c7a52}
 @keyframes blink{0%,100%{box-shadow:0 0 0 0 rgba(216,162,74,.28)}50%{box-shadow:0 0 0 9px rgba(216,162,74,0)}}
 
 .hint{
-  display:flex; justify-content:space-between; gap:12px; align-items:baseline;
+  display:flex; justify-content:space-between; gap:12px; align-items:baseline; margin:0;
   font-family:var(--mono); font-size:11px; letter-spacing:.18em; color:var(--faint);
   margin:10px 2px 0; text-transform:uppercase;
 }
@@ -229,7 +225,7 @@ button.opt.right{border-color:#5c7a52}
   box-shadow:0 14px 34px rgba(0,0,0,.5); font-size:15px; line-height:1.85;
   transform:rotate(-.25deg);
 }
-.file{max-height:46dvh; overflow-y:auto}
+.file{max-height:44dvh; overflow-y:auto}
 .file h4{
   margin:0 0 14px; font-family:var(--mono); font-size:10.5px; letter-spacing:.3em;
   text-transform:uppercase; color:#8a7c66; font-weight:400;
@@ -299,7 +295,7 @@ body.blind #vignette{background:radial-gradient(80% 60% at 50% 50%, rgba(0,0,0,.
 
 /* ── 수첩 (찢어낼 장 고르기) ────────────────────────── */
 
-.pages{display:flex; flex-direction:column; gap:8px; margin:20px 0}
+.pages{display:flex; flex-direction:column; gap:7px; margin:0; max-height:44dvh; overflow-y:auto}
 .page{
   display:flex; gap:12px; align-items:flex-start; cursor:pointer;
   background:rgba(233,224,205,.055); border:1px solid var(--line); border-radius:3px;
@@ -420,7 +416,7 @@ body.blind .tap{background:rgba(216,162,74,.13); border-color:var(--lamp)}
 
 /* 사진 그림판 — 선 그림과 같은 자리에 앉되, 회항의 색으로 눌러둔다 */
 .plate.photo img{display:block; width:100%; height:auto}
-.plate.photo{max-width:min(100%, 78dvh); margin-inline:auto}
+.plate.photo{max-width:min(100%, 62dvh); margin-inline:auto}
 .plate.photo::after{
   background:
     radial-gradient(58% 68% at 50% 34%, rgba(216,162,74,.13), transparent 72%),
@@ -457,7 +453,7 @@ body.slow .plate.photo img{filter:contrast(1.04) brightness(.96)}
 }
 
 /* 찾은 것들 — 이름표만 남긴다 */
-.chips{display:flex; flex-wrap:wrap; gap:6px; margin:12px 0 0}
+.chips{display:flex; flex-wrap:wrap; gap:6px; margin:0}
 .chip{
   font-family:var(--mono); font-size:11px; letter-spacing:.1em; color:var(--dim);
   border:1px solid var(--line); border-radius:999px; padding:3px 11px;
