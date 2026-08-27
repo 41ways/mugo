@@ -78,9 +78,12 @@ const done = (code) => { srv.kill(); fs.rmSync(dir, { recursive: true, force: tr
   assert.equal(look.judgeName, '을');
   assert.equal(look.reason, '손등의 상처가 설명되지 않는다');
 
-  // 주소는 지워졌다
+  // 주소는 「보내진 뒤에만」 지워진다.
+  // 이 테스트에는 발송 경로가 없어서 delivered=false 다. 그러면 주소가 남아야 한다 —
+  // 실패했는데도 지워버리면 다시 보낼 길이 영영 없어진다(tools/resend.js 가 이걸 먹고 산다).
+  assert.equal(v.delivered, false, '발송 경로가 없으니 delivered 는 false');
   const saved = JSON.parse(fs.readFileSync(path.join(dir, 'statements.json'), 'utf8'));
-  assert.equal(saved[0].email, null, '메일을 보낸 뒤 주소는 지워져야 한다');
+  assert.equal(saved[0].email, 'a@example.com', '발송에 실패했으면 주소는 남아 있어야 한다');
   assert.ok(log.includes('a@example.com'), '메일이 (콘솔로라도) 나가야 한다');
 
   // 없는 번호

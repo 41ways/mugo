@@ -116,9 +116,10 @@ async function apiVerdict(req, res) {
   const row = await store.judge(caseId, { verdict, reason, judge_name: judgeName });
   if (!row) return json(res, 200, { ok: true, delivered: false, already: true });
 
-  // 메일은 한 번만 쓰고 지운다.
+  // 메일은 한 번만 쓰고 지운다 — 단, 실제로 나갔을 때만.
+  // 발송이 실패했는데도 주소를 지우면 다시 보낼 길이 영영 없어진다.
   const delivered = await mailer.sendVerdict(row);
-  if (row.email) await store.clearEmail(row.id);
+  if (row.email && delivered) await store.clearEmail(row.id);
   json(res, 200, { ok: true, delivered });
 }
 

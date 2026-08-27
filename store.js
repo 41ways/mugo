@@ -93,6 +93,13 @@ class FileStore {
     };
   }
 
+  // 판결은 났는데 통지가 못 나간 것들. 주소가 남아 있으면 아직 못 보냈다는 뜻이다.
+  async undelivered() {
+    return this.rows
+      .filter((r) => r.judged_at && r.email)
+      .sort((a, b) => a.judged_at - b.judged_at);
+  }
+
   // 대기열을 들여다볼 때만 쓴다(tools/queue.js). 게임 진행에는 안 쓰인다.
   async all() {
     return this.rows.slice();
@@ -195,6 +202,15 @@ class PgStore {
               count(*) FILTER (WHERE judged_at IS NULL)::int AS pending
          FROM statements`);
     return rows[0];
+  }
+
+  // 판결은 났는데 통지가 못 나간 것들. 다시 보내야 하므로 주소를 그대로 가져온다.
+  async undelivered() {
+    const { rows } = await this.pool.query(
+      `SELECT * FROM statements
+        WHERE judged_at IS NOT NULL AND email IS NOT NULL
+        ORDER BY judged_at`);
+    return rows;
   }
 
   // 대기열을 들여다볼 때만 쓴다(tools/queue.js). 주소는 있는지 없는지만 가져온다.

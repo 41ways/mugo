@@ -2,21 +2,31 @@
 
 // 판결 통지서를 보낸다.
 //
-// SMTP_URL 이 없으면 아무 데도 보내지 않고 콘솔에만 찍는다(로컬 개발).
-// Gmail 이라면 2단계 인증을 켜고 앱 비밀번호를 발급받아
-//   SMTP_URL=smtps://아이디@gmail.com:앱비밀번호@smtp.gmail.com:465
-// 형태로 넣으면 된다.
+// 길은 셋. 위에서부터 있는 것을 쓴다.
+//
+//   1) RESEND_API_KEY — Resend 에 HTTPS(443) 로 던진다. 포트를 안 탄다.
+//   2) SMTP_URL       — nodemailer 로 직접 SMTP 를 문다. 로컬 개발용.
+//   3) 아무것도 없음   — 콘솔에만 찍는다.
+//
+// Render 무료 플랜은 2025-09-26 부터 아웃바운드 25·465·587 을 전부 막았다.
+// 거기서 SMTP 는 무조건 Connection timeout 이 난다. 코드도 앱 비밀번호도
+// 잘못된 게 아니다. 포트를 안 타는 HTTPS API 라야 나간다 — 그게 1) 이 있는 이유다.
 
 const nodemailer = require('nodemailer');
 
 const FROM = process.env.MAIL_FROM || '회항 경찰서 <no-reply@localhost>';
 const SITE = (process.env.PUBLIC_URL || 'http://localhost:8787').replace(/\/$/, '');
 
+const RESEND_KEY = process.env.RESEND_API_KEY || '';
+
 let transport = null;
-if (process.env.SMTP_URL) {
+if (RESEND_KEY) {
+  console.log('[mail] Resend (HTTPS)');
+} else if (process.env.SMTP_URL) {
   transport = nodemailer.createTransport(process.env.SMTP_URL);
+  console.log('[mail] SMTP');
 } else {
-  console.warn('[mail] SMTP_URL 없음 — 메일은 콘솔에만 찍힌다.');
+  console.warn('[mail] RESEND_API_KEY·SMTP_URL 둘 다 없음 — 메일은 콘솔에만 찍힌다.');
 }
 
 // 받침을 보고 조사를 고른다. 이름 뒤에 괄호가 붙으면 이야기의 김이 샌다.
@@ -90,17 +100,41 @@ function verdictMail(row) {
   };
 }
 
+// Resend. 포트를 타지 않으므로 SMTP 를 막는 곳에서도 나간다.
+async function viaResend(to, mail) {
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${RESEND_KEY}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: FROM, to: [to], subject: mail.subject, html: mail.html, text: mail.text,
+    }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  // 실패 사유를 그대로 물고 나온다. 키 오류·도메인 미인증이 여기서 걸린다.
+  if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 300)}`);
+  return (await res.json()).id;
+}
+
 async function send(to, mail) {
   if (!to) return false;
-  if (!transport) {
+  if (!RESEND_KEY && !transport) {
     console.log(`\n[mail:콘솔] → ${to}\n  ${mail.subject}\n${mail.text}\n`);
     return false;
   }
   try {
-    await transport.sendMail({ from: FROM, to, ...mail });
-    console.log(`[mail] 발송 → ${to} : ${mail.subject}`);
+    if (RESEND_KEY) {
+      const id = await viaResend(to, mail);
+      console.log(`[mail] 발송 → ${to} : ${mail.subject} (${id})`);
+    } else {
+      await transport.sendMail({ from: FROM, to, ...mail });
+      console.log(`[mail] 발송 → ${to} : ${mail.subject}`);
+    }
     return true;
   } catch (err) {
+    // false 를 돌려주면 server.js 가 주소를 지우지 않는다. tools/resend.js 로 다시 보낼 수 있다.
     console.error('[mail] 발송 실패', err.message);
     return false;
   }
@@ -108,5 +142,6 @@ async function send(to, mail) {
 
 module.exports = {
   sendVerdict: (row) => send(row.email, verdictMail(row)),
-  enabled: () => !!transport,
+  verdictMail,
+  enabled: () => !!RESEND_KEY || !!transport,
 };
