@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS statements (
   answers     JSONB NOT NULL,
   clues       JSONB NOT NULL DEFAULT '[]'::jsonb,
   email       TEXT,
+  caught      TEXT,
   created_at  BIGINT NOT NULL,
   claimed_at  BIGINT,
   judged_at   BIGINT,
@@ -113,6 +114,7 @@ CREATE TABLE IF NOT EXISTS statements (
   judge_name  TEXT
 );
 CREATE INDEX IF NOT EXISTS statements_open ON statements (judged_at, created_at);
+ALTER TABLE statements ADD COLUMN IF NOT EXISTS caught TEXT;
 `;
 
 class PgStore {
@@ -133,10 +135,10 @@ class PgStore {
 
   async insert(row) {
     await this.pool.query(
-      `INSERT INTO statements (id, token, player, name, answers, clues, email, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      `INSERT INTO statements (id, token, player, name, answers, clues, email, caught, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
       [row.id, row.token, row.player, row.name,
-       JSON.stringify(row.answers), JSON.stringify(row.clues), row.email, row.created_at]);
+       JSON.stringify(row.answers), JSON.stringify(row.clues), row.email, row.caught, row.created_at]);
     return row;
   }
 

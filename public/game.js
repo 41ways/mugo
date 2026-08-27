@@ -185,6 +185,31 @@
     }
   }
 
+  // 관찰 결과는 화면 한가운데에 띄운다. 아래로 쌓으면 판에서 눈을 떼야 한다.
+  function cluePop(sp) {
+    return new Promise((resolve) => {
+      const back = document.body.appendChild(el('div', 'clue-back'));
+      const pop = document.body.appendChild(el('div', 'clue-pop',
+        `<span class="tag">${esc(sp.tag)}</span>` +
+        `<p>${esc(sp.text)}</p>` +
+        (sp.more ? `<p class="more">${esc(sp.more)}</p>` : '') +
+        `<div class="close">닫기</div>`));
+      const key = (e) => {
+        if (e.key !== 'Escape' && e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault(); done();
+      };
+      const done = () => {
+        removeEventListener('keydown', key, true);
+        back.remove(); pop.remove();
+        resolve();
+      };
+      back.onclick = done;
+      pop.onclick = done;
+      addEventListener('keydown', key, true);
+      requestAnimationFrame(() => { back.classList.add('on'); pop.classList.add('on'); });
+    });
+  }
+
   function observe(cfg) {
     return new Promise((resolve) => {
       const plate = PLATES[cfg.plate];
@@ -200,7 +225,7 @@
           : plate.svg));
       const hint = box.appendChild(el('div', 'hint'));
       const cap = cfg.max || plate.spots.length;
-      const cards = box.appendChild(el('div'));
+      const chips = box.appendChild(el('div', 'chips'));
       const foot = box.appendChild(el('div', 'row'));
       const btn = foot.appendChild(el('button', 'btn', '충분하다 ▸'));
       btn.style.display = 'none';
@@ -216,15 +241,13 @@
         h.style.left = sp.x + '%';
         h.style.top = sp.y + '%';
         h.setAttribute('aria-label', sp.tag);
-        h.onclick = () => {
+        h.onclick = async () => {
           if (h.classList.contains('done')) return;
           h.classList.add('done');
           found.push(sp);
-          const c = cards.appendChild(el('div', 'clue',
-            `<span class="tag">${esc(sp.tag)}</span><p>${esc(sp.text)}</p>` +
-            (sp.more ? `<p>${esc(sp.more)}</p>` : '')));
-          c.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          chips.appendChild(el('span', 'chip', esc(sp.tag)));
           refresh();
+          await cluePop(sp);
           if (found.length >= cap) finish();
         };
       });
@@ -408,7 +431,7 @@
     if (!torn.length) return [];
     const T = S.act2.torn;
     const ko = ['', '한', '두', '세', '네', '다섯', '여섯', '일곱'];
-    const out = [T.head.replace('{n}', ko[torn.length] || String(torn.length))];
+    const out = [T.count.replace('{n}', ko[torn.length] || String(torn.length))];
     if (torn.some((p) => p.cat === 'entry')) out.push(T.entry);
     if (torn.some((p) => p.cat === 'habit')) out.push(T.habit);
     if (torn.length >= 4) out.push(T.many);
@@ -427,6 +450,10 @@
     if (!res.ok) throw new Error('서버가 응답하지 않는다');
     return res.json();
   }
+
+  // 셋째 질문만 갈린다. 부두에서 잡혔으면 흉기가, 저택에서 잡혔으면 현장이 근거가 된다.
+  const threeQs = (block, caught) =>
+    block.questions.concat([block.third[caught === 'house' ? 'house' : 'dock']]);
 
   /* ═════════════════════════ 진행 ═════════════════════════ */
 
@@ -515,26 +542,34 @@
     const c = await casePromise;
     state.caseData = c;
 
-    fileCard(S.act2.file.head,
-      '<ul>' + S.act2.file.items.map((i) => `<li>${i}</li>`).join('') + '</ul>',
-      S.act2.file.stamp);
-    await wait(1100);
-    await say(S.act2.after);
-
-    await observe(S.act2.observe);
-
-    const nb = S.act2.notebook;
+    const E = S.act2.evidence;
     const torn = (c.clues && c.clues.length) ? c.clues : [];
-    fileCard(nb.head,
-      `<p style="margin:0 0 12px;color:#6f6552;font-size:13.5px">${esc(torn.length ? nb.torn : nb.clean)}</p>` +
-      torn.map((x) => `<p class="memo">— ${esc(x)}</p>`).join(''));
-    await wait(1100);
+    fileCard(E.head,
+      `<ul>` +
+      `<li>${E.weapon[c.caught === 'house' ? 'house' : 'dock']}</li>` +
+      `<li>${E.ticket}</li>` +
+      `<li>${torn.length ? E.journal.torn : E.journal.clean}</li>` +
+      `</ul>` +
+      `<p style="margin:15px 0 0">${E.note[c.caught === 'house' ? 'house' : 'dock']}</p>`,
+      E.stamp);
+    await wait(1400);
+
+    if (torn.length) {
+      const T = S.act2.tamper;
+      fileCard(T.head,
+        `<p style="margin:0 0 13px;color:#6f6552;font-size:13.5px">${esc(T.lead)}</p>` +
+        torn.map((x) => `<p class="memo">— ${esc(x)}</p>`).join(''), null, 'alarm');
+      await wait(1400);
+    }
+
+    await say(S.act2.after);
+    await observe(S.act2.observe);
 
     // 사흘 동안 입을 안 열던 사람이, 먼저 당신을 읽는다.
     const R = S.act2.read;
     await say(R.open);
     const pool = state.traces.map((t) => R.lines[t]).filter(Boolean);
-    for (let i = pool.length - 1; i > 0; i--) {           // 매번 다른 세 마디가 나오도록
+    for (let i = pool.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [pool[i], pool[j]] = [pool[j], pool[i]];
     }
@@ -546,7 +581,7 @@
     // 세 마디. 대답은 앞사람이 직접 쓴 것이다.
     for (let i = 0; i < 3; i++) {
       const box = put(el('div', 'step qa'));
-      box.appendChild(el('p', 'qq', `${i + 1}. ${esc(S.act2.questions[i])}`));
+      box.appendChild(el('p', 'qq', `${i + 1}. ${esc(threeQs(S.act2, c.caught)[i])}`));
       toBottom();
       await wait(1250);
       const a = (c.answers[i] || '').trim();
@@ -565,6 +600,7 @@
     }).catch(() => {});
 
     await say(verdict.v === 'guilty' ? S.act2.guilty : S.act2.innocent);
+    if (verdict.v === 'guilty') await say(S.act2.doubt);
   }
 
   function verdictForm() {
@@ -744,7 +780,7 @@
     const answers = [];
     for (let i = 0; i < 3; i++) {
       const box = put(el('div', 'step qa'));
-      box.appendChild(el('p', 'qq', `${i + 1}. ${esc(S.act8.questions[i])}`));
+      box.appendChild(el('p', 'qq', `${i + 1}. ${esc(threeQs(S.act8, state.chased ? 'dock' : 'house')[i])}`));
       const input = box.appendChild(el('textarea'));
       input.rows = 2;
       input.maxLength = 140;
@@ -809,7 +845,8 @@
     let res = null;
     try {
       res = await api('/api/statement', {
-        player: state.player, name: state.name, answers, clues: tornSummary(state.torn), email,
+        player: state.player, name: state.name, answers, clues: tornSummary(state.torn),
+        caught: state.chased ? 'dock' : 'house', email,
       });
     } catch { /* 서버가 죽어도 이야기는 끝까지 간다 */ }
 

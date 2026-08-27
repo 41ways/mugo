@@ -95,6 +95,7 @@ async function apiCase(req, res) {
     name: src.name,
     answers: (typeof src.answers === 'string' ? JSON.parse(src.answers) : src.answers) || [],
     clues: (typeof src.clues === 'string' ? JSON.parse(src.clues) : src.clues) || [],
+    caught: src.caught === 'house' ? 'house' : 'dock',
     waited: row ? Math.max(0, Date.now() - Number(row.created_at)) : null,
   });
 }
@@ -139,6 +140,7 @@ async function apiStatement(req, res) {
     answers,
     clues,
     email: isEmail(email) ? email : null,
+    caught: body.caught === 'house' ? 'house' : 'dock',
     created_at: Date.now(),
     claimed_at: null,
     judged_at: null,
