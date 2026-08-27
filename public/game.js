@@ -59,17 +59,17 @@
   // 넘길 때가 됐는지. 화면 높이를 아직 못 재는 순간이 있어서, 못 재면 계산으로 대신한다.
   // (프레임을 기다리면 탭이 가려져 있을 때 영영 안 돌아온다.)
   function overflows() {
-    // 선택지가 나중에 뜰 자리까지 미리 비워둔다. 안 그러면 선택지가 글을 덮는다.
-    const room = Math.max(0, 168 - opts.offsetHeight);
-    const avail = (flow.clientHeight > 40
+    // 조작 칸은 자기 높이만큼 이미 글 영역을 밀어냈으므로, 여기서 더 깎지 않는다.
+    const avail = flow.clientHeight > 40
       ? flow.clientHeight
-      : Math.max(160, stage.clientHeight - opts.offsetHeight - tapslot.offsetHeight - 72)) - room;
+      : Math.max(160, stage.clientHeight - opts.offsetHeight - tapslot.offsetHeight - 72);
     return flow.scrollHeight > avail + 1;
   }
 
   // 사진·조서도 글과 같은 흐름에 놓는다. 읽던 자리 다음에 나와야 읽기 편하다.
   async function addBlock(n) {
     // 사진은 로드되기 전엔 높이가 0이라, 로드를 기다렸다가 넘침을 잰다.
+    // 연출도 다 받아온 뒤에 시작해야 중간부터 튀어나오지 않는다.
     const img = n.querySelector && n.querySelector('img');
     if (img && !img.complete) {
       await new Promise((r) => { img.onload = r; img.onerror = r; setTimeout(r, 2500); });
@@ -148,9 +148,16 @@
         removeEventListener('click', go, true);
         tapslot.innerHTML = '';
         if (full) { wipe(); } else {
+          // 붙박이(관찰판)와 직전 한 줄은 남긴다. 새 장이 한 줄만 덩그러니 뜨면 허전하다.
           const keep = [...flow.querySelectorAll('.sticky')];
+          const kids = [...flow.children].filter((k) => !k.classList.contains('sticky'));
+          const tailLine = kids.filter((k) => k.tagName === 'P' || k.classList.contains('said')).pop();
           flow.innerHTML = '';
           keep.forEach((k) => flow.appendChild(k));
+          if (!keep.length && tailLine) {
+            tailLine.classList.add('carried');
+            flow.appendChild(tailLine);
+          }
         }
         resolve();
       };
@@ -185,7 +192,7 @@
     }
   }
 
-  function choose(prompt, choices) {
+  async function choose(prompt, choices) {
     return new Promise((resolve) => {
       const box = setFoot(el('div'));
       box.style.cssText = 'display:flex;flex-direction:column;gap:9px';
@@ -652,12 +659,15 @@
   async function act0() {
     await say(S.intro);
 
+    // 편지는 화면 하나를 통째로 쓴다. 다른 줄에 밀려 사라지면 안 된다.
+    await turn(false);
     const L = S.letter;
-    fileCard(L.head,
+    await fileCard(L.head,
       L.body.map((b) => `<p style="margin:0 0 13px">${esc(b)}</p>`).join('') +
       `<p style="margin:20px 0 0;text-align:right">${esc(L.sign)}</p>`, null, 'hand');
-    await wait(1600);
+    await wait(1900);
     await say([{ w: L.note }]);
+    await turn(false);
     await say(S.act0.lead);
 
     for (const b of S.act0.beats) {
@@ -698,14 +708,14 @@
       `</ul>` +
       `<p style="margin:15px 0 0">${E.note[c.caught === 'house' ? 'house' : 'dock']}</p>`,
       E.stamp);
-    await wait(1400);
+    await wait(1700);
 
     if (torn.length) {
       const T = S.act2.tamper;
       await fileCard(T.head,
         `<p style="margin:0 0 13px;color:#6f6552;font-size:13.5px">${esc(T.lead)}</p>` +
         torn.map((x) => `<p class="memo">— ${esc(x)}</p>`).join(''), null, 'alarm');
-      await wait(1400);
+      await wait(1900);
     }
 
     await say(S.act2.after);
@@ -884,7 +894,8 @@
 
     await say(S.act7.pocket);
 
-    // 목록이 길 수 있으니 질문·목록·버튼을 한 덩어리로 아래 칸에 둔다.
+    // 수첩은 화면 하나를 통째로 쓴다. 목록이 이야기 글을 덮으면 안 된다.
+    await turn(false);
     const bar = setFoot(el('div'));
     bar.style.cssText = 'display:flex;flex-direction:column;gap:9px';
     bar.appendChild(el('p', 'ask', esc(S.act7.tearLead)));

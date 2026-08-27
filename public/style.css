@@ -65,13 +65,19 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
   height:100vh; height:100dvh;
   max-width:760px; margin:0 auto;
   padding:clamp(16px,3.4vh,34px) clamp(16px,5vw,28px) clamp(14px,2.6vh,26px);
-  display:flex; flex-direction:column; gap:clamp(10px,1.8vh,20px);
+  display:flex; flex-direction:column; gap:clamp(6px,1vh,12px);
   overflow:hidden;
 }
-#flow{flex:1 1 0; min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:0}
+#flow{flex:1 1 0; min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:0; justify-content:flex-end}
 #flow > *{flex:none}
+#flow > *:last-child{margin-bottom:0}
 .plate, .file, .pages{margin-block:clamp(8px,1.6vh,16px)}
-#foot{flex:none; display:flex; flex-direction:column; gap:clamp(10px,1.7vh,18px)}
+/* 조작 칸 높이를 미리 잡아둔다. 선택지가 떴다 사라질 때마다 글 영역이 흔들리면
+   방금 나온 줄이 화면 밖으로 밀려 사라진다. */
+#foot{
+  flex:none; display:flex; flex-direction:column; justify-content:flex-end;
+  gap:clamp(7px,1.1vh,12px); min-height:clamp(120px,18vh,168px);
+}
 /* 선택지는 계속 버튼 자리를 침범하지 않고, 이야기 글과도 선으로 구분된다 */
 #opts{display:flex; flex-direction:column; gap:8px}
 #opts:empty{display:none}
@@ -311,7 +317,7 @@ body.blind #vignette{background:radial-gradient(80% 60% at 50% 50%, rgba(0,0,0,.
 
 /* ── 수첩 (찢어낼 장 고르기) ────────────────────────── */
 
-.pages{display:flex; flex-direction:column; gap:7px; margin:0; max-height:44dvh; overflow-y:auto}
+.pages{display:flex; flex-direction:column; gap:7px; margin:0; max-height:52dvh; overflow-y:auto; scrollbar-width:thin}
 .page{
   display:flex; gap:12px; align-items:flex-start; cursor:pointer;
   background:rgba(233,224,205,.055); border:1px solid var(--line); border-radius:3px;
@@ -532,3 +538,72 @@ p.ask{
 .scene-list{display:flex; flex-direction:column; gap:12px; align-items:center; margin-top:20px}
 .scene-list button.dopt{padding:8px 18px}
 .scene-foot .timer{width:min(420px, 80%); margin:0 auto}
+
+/* ── 등장 연출 — 물건마다 나타나는 방식이 다르다 ──────────── */
+
+/* 편지 — 봉투에서 꺼내 펼치듯 */
+.file.hand{
+  animation:unfold .75s cubic-bezier(.2,.75,.3,1) both;
+  transform-origin:50% 0;
+}
+@keyframes unfold{
+  0%{opacity:0; transform:perspective(900px) rotateX(-72deg) translateY(-14px) rotate(.4deg)}
+  60%{opacity:1}
+  100%{opacity:1; transform:perspective(900px) rotateX(0) translateY(0) rotate(.4deg)}
+}
+
+/* 조서·압수품 — 책상에 툭 내려놓듯 */
+.file:not(.hand){
+  animation:drop .5s cubic-bezier(.25,.9,.35,1.15) both;
+}
+@keyframes drop{
+  0%{opacity:0; transform:translateY(-22px) rotate(-1.4deg) scale(1.03)}
+  100%{opacity:1; transform:translateY(0) rotate(-.25deg) scale(1)}
+}
+/* 증거 인멸 카드는 한 번 더 흔들린다 */
+.file.alarm{animation:drop .5s cubic-bezier(.25,.9,.35,1.15) both, jolt .5s .5s ease-out both}
+@keyframes jolt{
+  0%,100%{transform:translateY(0) rotate(.3deg)}
+  25%{transform:translateY(0) rotate(-.9deg)}
+  60%{transform:translateY(0) rotate(.8deg)}
+}
+
+/* 사진 — 어둠에서 서서히 떠오르듯 */
+.plate.photo{animation:surface 1.05s cubic-bezier(.2,.7,.3,1) both}
+@keyframes surface{
+  0%{opacity:0; filter:brightness(.25) blur(9px); transform:scale(1.05)}
+  100%{opacity:1; filter:brightness(1) blur(0); transform:scale(1)}
+}
+/* 관찰점은 사진이 다 뜬 뒤에 하나씩 켜진다 */
+.plate .hot{animation:blink 3.2s ease-in-out infinite, lamp .5s .95s both}
+@keyframes lamp{from{opacity:0; transform:scale(.4)} to{opacity:1; transform:scale(1)}}
+
+/* 사건일지 — 종이 넘기듯 한 장씩 */
+.pages .page{animation:leaf .42s cubic-bezier(.2,.75,.3,1) both}
+@keyframes leaf{
+  from{opacity:0; transform:translateX(-14px) rotate(-.8deg)}
+  to{opacity:1; transform:none}
+}
+.pages .page:nth-child(1){animation-delay:.02s}
+.pages .page:nth-child(2){animation-delay:.10s}
+.pages .page:nth-child(3){animation-delay:.18s}
+.pages .page:nth-child(4){animation-delay:.26s}
+.pages .page:nth-child(5){animation-delay:.34s}
+.pages .page:nth-child(6){animation-delay:.42s}
+.pages .page:nth-child(7){animation-delay:.50s}
+/* 찢을 때 — 찢겨 나가는 느낌 */
+.page.torn{animation:tear .3s ease-out both}
+@keyframes tear{
+  0%{transform:translateX(0)}
+  35%{transform:translateX(9px) rotate(1.1deg)}
+  100%{transform:translateX(0) rotate(0)}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .file.hand,.file:not(.hand),.file.alarm,.plate.photo,.pages .page,.page.torn{animation:none}
+  .plate .hot{animation:none}
+}
+
+/* 화면을 넘길 때 이어온 직전 한 줄 — 흐리게 남아 문맥만 잇는다 */
+#flow > .carried{opacity:.42}
+#flow > .carried .w{animation:none}
