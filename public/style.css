@@ -272,16 +272,6 @@ button.opt.right{border-color:#5c7a52}
 }
 .file .empty{color:#8a7c66; font-style:italic}
 
-/* 심문 문답 */
-.qa{margin:20px 0}
-.qa .qq{color:var(--lamp); font-size:15.5px; margin:0 0 10px}
-.qa .aa{
-  color:var(--paper); font-size:17px; padding:14px 18px; margin:0;
-  background:rgba(255,255,255,.026); border:1px solid var(--line); border-radius:3px;
-  min-height:56px; display:flex; align-items:center;
-}
-.qa .aa.silent{color:var(--faint); font-style:italic}
-
 /* ── 입력 ───────────────────────────────────────────── */
 
 input[type=text], input[type=email], textarea{

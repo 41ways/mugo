@@ -755,12 +755,15 @@
     await say(S.act2.lead);
 
     // 세 마디. 대답은 앞사람이 직접 쓴 것이다.
+    const qs = threeQs(S.act2, c.caught);
     for (let i = 0; i < 3; i++) {
-      addLine(el('p', 'qq', `${i + 1}. ${esc(threeQs(S.act2, c.caught)[i])}`));
-      await wait(1250);
+      if (i > 0) await turn(false);
+      await say([{ who: '나', s: qs[i] }], { silent: true });
+      await wait(900);
       const a = (c.answers[i] || '').trim();
-      addLine(el('p', 'aa' + (a ? '' : ' silent'), esc(a || S.act2.silent)));
-      await wait(500);
+      if (a) await say([{ who: '남자', s: a }], { silent: true });
+      else addLine(el('p', 'say whisper', words(S.act2.silent)));
+      await wait(700);
     }
 
     await say(S.act2.askVerdict);
@@ -942,7 +945,8 @@
     await say(S.act8.open);
     const answers = [];
     for (let i = 0; i < 3; i++) {
-      addLine(el('p', 'qq', `${i + 1}. ${esc(threeQs(S.act8, state.chased ? 'dock' : 'house')[i])}`));
+      if (i > 0) await turn(false);
+      await say([{ who: '켈러 소장', s: threeQs(S.act8, state.chased ? 'dock' : 'house')[i] }], { silent: true });
       const box = setFoot(el('div'));
       box.style.cssText = 'display:flex;flex-direction:column;gap:8px';
       const input = box.appendChild(el('input'));
