@@ -148,16 +148,9 @@
         removeEventListener('click', go, true);
         tapslot.innerHTML = '';
         if (full) { wipe(); } else {
-          // 붙박이(관찰판)와 직전 한 줄은 남긴다. 새 장이 한 줄만 덩그러니 뜨면 허전하다.
           const keep = [...flow.querySelectorAll('.sticky')];
-          const kids = [...flow.children].filter((k) => !k.classList.contains('sticky'));
-          const tailLine = kids.filter((k) => k.tagName === 'P' || k.classList.contains('said')).pop();
           flow.innerHTML = '';
           keep.forEach((k) => flow.appendChild(k));
-          if (!keep.length && tailLine) {
-            tailLine.classList.add('carried');
-            flow.appendChild(tailLine);
-          }
         }
         resolve();
       };
@@ -178,15 +171,39 @@
   const pace = (l) => l.hr ? 180 : Math.min(1250, 300 + wordCount(l.s || l.c || l.b || l.w || '') * 32);
 
   // 글은 위에서 아래로 흐르고, 아래에 닿으면 그때 「계속」이 뜬다.
+  // 한 장에 한 줄만 덩그러니 남기지 않는다. 넘긴 자리에 최소 두세 줄은 들어가게.
+  const MIN_LINES = 3;
+
   async function say(lines, o = {}) {
-    if (lines.some((l) => l.c)) await turn(true);
-    for (const l of lines) {
+    // silent 는 「계속」을 세우지 않고 지나가는 자리다. 여기서 기다리면 그대로 멈춘다.
+    if (lines.some((l) => l.c)) {
+      if (o.silent) wipe(); else await turn(true);
+    }
+    const clearSoft = () => {
+      const keep = [...flow.querySelectorAll('.sticky')];
+      flow.innerHTML = '';
+      keep.forEach((k) => flow.appendChild(k));
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
       const n = lineNode(l);
       flow.appendChild(n);
+
       if (overflows()) {
         n.remove();
-        await turn(false);
+        if (o.silent) clearSoft(); else await turn(false);
         flow.appendChild(n);
+
+        // 새 장을 열었으면, 뒤따르는 줄들을 미리 붙여 한 줄짜리 화면을 막는다.
+        let filled = 1;
+        while (filled < MIN_LINES && i + 1 < lines.length) {
+          const peek = lineNode(lines[i + 1]);
+          flow.appendChild(peek);
+          if (overflows()) { peek.remove(); break; }
+          i += 1; filled += 1;
+          await beat(pace(lines[i]));
+        }
       }
       await beat(pace(l));
     }
@@ -659,15 +676,13 @@
   async function act0() {
     await say(S.intro);
 
-    // 편지는 화면 하나를 통째로 쓴다. 다른 줄에 밀려 사라지면 안 된다.
-    await turn(false);
+    // 편지는 앞 서술과 같은 장에 놓는다. 자리가 모자랄 때만 알아서 넘어간다.
     const L = S.letter;
     await fileCard(L.head,
       L.body.map((b) => `<p style="margin:0 0 13px">${esc(b)}</p>`).join('') +
       `<p style="margin:20px 0 0;text-align:right">${esc(L.sign)}</p>`, null, 'hand');
     await wait(1900);
     await say([{ w: L.note }]);
-    await turn(false);
     await say(S.act0.lead);
 
     for (const b of S.act0.beats) {
@@ -1026,7 +1041,12 @@
     // 마지막 장면에는 사진을 두지 않는다. 들여다보는 쪽은 이제 이쪽이 아니다.
     await say(S.act9.lastVisit);
 
-    setFoot(footerNode('주소는 판결 한 통을 보내고 나면 지워진다.'));
+    const end = setFoot(el('div'));
+    end.style.cssText = 'display:flex;flex-direction:column;gap:12px';
+    const endRow = end.appendChild(el('div', 'row'));
+    const again = endRow.appendChild(el('button', 'btn ghost', '처음으로'));
+    again.onclick = () => { location.href = location.pathname; };
+    end.appendChild(footerNode('주소는 판결 한 통을 보내고 나면 지워진다.'));
   }
 
   /* ── 판결 확인 페이지 ───────────────────────────────── */
@@ -1073,7 +1093,7 @@
 
   function backLink() {
     const row = setFoot(el('div', 'row'));
-    const b = row.appendChild(el('button', 'btn', '회항으로 간다'));
+    const b = row.appendChild(el('button', 'btn', '처음으로'));
     b.onclick = () => { location.href = location.pathname; };
     row.appendChild(footerNode());
   }

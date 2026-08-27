@@ -68,7 +68,7 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
   display:flex; flex-direction:column; gap:clamp(6px,1vh,12px);
   overflow:hidden;
 }
-#flow{flex:1 1 0; min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:0; justify-content:flex-end}
+#flow{flex:1 1 0; min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:0; justify-content:flex-start}
 #flow > *{flex:none}
 #flow > *:last-child{margin-bottom:0}
 .plate, .file, .pages{margin-block:clamp(8px,1.6vh,16px)}
@@ -76,7 +76,7 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
    방금 나온 줄이 화면 밖으로 밀려 사라진다. */
 #foot{
   flex:none; display:flex; flex-direction:column; justify-content:flex-end;
-  gap:clamp(7px,1.1vh,12px); min-height:clamp(120px,18vh,168px);
+  gap:clamp(7px,1.1vh,12px); min-height:clamp(150px,22vh,196px);
 }
 /* 선택지는 계속 버튼 자리를 침범하지 않고, 이야기 글과도 선으로 구분된다 */
 #opts{display:flex; flex-direction:column; gap:8px}
@@ -86,7 +86,7 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
   background:rgba(255,255,255,.014);
   padding:clamp(11px,1.7vh,15px) clamp(12px,2vw,16px);
 }
-#tapslot{flex:none; min-height:46px; display:flex; align-items:center}
+#tapslot{flex:none; min-height:52px; display:flex; align-items:center; justify-content:flex-end}
 /* 관찰 화면 — 사진을 크게 쓰고 가운데로 모은다 */
 #stage.look #flow{display:flex; flex-direction:column; justify-content:center; gap:4px}
 #stage.look .plate.photo{max-width:min(100%, 95dvh)}
@@ -158,14 +158,20 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
 
 /* 다음으로 넘기는 커서 */
 .tap{
-  display:inline-flex; align-items:center; gap:10px; align-self:flex-start;
-  padding:9px 18px 9px 20px; cursor:pointer; user-select:none;
-  color:var(--lamp); font-family:var(--mono); font-size:12.5px; letter-spacing:.2em;
-  background:rgba(216,162,74,.07); border:1px solid rgba(216,162,74,.42);
-  border-radius:3px; transition:background .16s, border-color .16s;
+  display:inline-flex; align-items:center; gap:11px; align-self:flex-end;
+  padding:11px 20px 11px 24px; cursor:pointer; user-select:none;
+  color:#1a1206; font-family:var(--mono); font-size:13px; font-weight:600; letter-spacing:.18em;
+  background:var(--lamp); border:1px solid var(--lamp);
+  border-radius:3px; box-shadow:0 0 0 0 rgba(216,162,74,.45);
+  animation:beckon 2.4s ease-in-out infinite;
+  transition:filter .16s, transform .16s;
 }
-.tap::after{content:'▸'; font-size:14px; animation:nudge 1.6s ease-in-out infinite}
-.tap:hover{background:rgba(216,162,74,.15); border-color:var(--lamp)}
+.tap::after{content:'▸'; font-size:15px; animation:nudge 1.6s ease-in-out infinite}
+.tap:hover{filter:brightness(1.12); transform:translateX(2px)}
+@keyframes beckon{
+  0%,100%{box-shadow:0 0 0 0 rgba(216,162,74,.42)}
+  60%{box-shadow:0 0 0 10px rgba(216,162,74,0)}
+}
 @keyframes nudge{0%,100%{transform:translateX(0);opacity:.6}50%{transform:translateX(4px);opacity:1}}
 
 /* ── 선택지 ─────────────────────────────────────────── */
@@ -434,7 +440,7 @@ button.dopt.faded{opacity:.16}
 body.blind #vignette{
   background:radial-gradient(125% 105% at 50% 45%, rgba(0,0,0,0) 30%, rgba(0,0,0,.74) 100%);
 }
-body.blind .tap{background:rgba(216,162,74,.13); border-color:var(--lamp)}
+body.blind .tap{background:var(--lamp); border-color:var(--lamp); color:#1a1206}
 
 /* 사진 그림판 — 선 그림과 같은 자리에 앉되, 회항의 색으로 눌러둔다 */
 .plate.photo img{display:block; width:100%; height:auto}
@@ -517,7 +523,7 @@ body.slow .plate.photo img{filter:contrast(1.04) brightness(.96)}
 }
 .scene-text .say.beat{color:var(--lamp)}
 .scene-foot{flex:none; display:flex; flex-direction:column; gap:12px; min-height:52px; justify-content:flex-end}
-.scene-foot .tap{align-self:center}
+.scene-foot .tap{align-self:flex-end}
 /* 소리 난 쪽에 놓이는 선택지 — 사진 위 */
 .scene-in .p-left,.scene-in .p-right{position:absolute; top:50%; transform:translateY(-50%); max-width:38%; text-align:center}
 .scene-in .p-left{left:clamp(10px,4vw,52px)}
@@ -603,7 +609,3 @@ p.ask{
   .file.hand,.file:not(.hand),.file.alarm,.plate.photo,.pages .page,.page.torn{animation:none}
   .plate .hot{animation:none}
 }
-
-/* 화면을 넘길 때 이어온 직전 한 줄 — 흐리게 남아 문맥만 잇는다 */
-#flow > .carried{opacity:.42}
-#flow > .carried .w{animation:none}
