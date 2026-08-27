@@ -67,6 +67,11 @@
 
   // 사진·조서도 글과 같은 흐름에 놓는다. 읽던 자리 다음에 나와야 읽기 편하다.
   async function addBlock(n) {
+    // 사진은 로드되기 전엔 높이가 0이라, 로드를 기다렸다가 넘침을 잰다.
+    const img = n.querySelector && n.querySelector('img');
+    if (img && !img.complete) {
+      await new Promise((r) => { img.onload = r; img.onerror = r; setTimeout(r, 2500); });
+    }
     flow.appendChild(n);
     if (overflows()) {
       n.remove();
@@ -251,7 +256,9 @@
     });
   }
 
-  function observe(cfg) {
+  async function observe(cfg) {
+    // 사진이 통째로 보여야 하니, 읽던 글은 먼저 넘긴다.
+    if (flow.children.length) await turn(false);
     return new Promise((resolve) => {
       const plate = PLATES[cfg.plate];
       const found = [];
@@ -392,6 +399,57 @@
   }
 
   /* ── 몰입 화면 — 사진이 화면을 다 덮고, 그 위에서 고른다 ───────── */
+
+  // 사진 위에서 고르는 제한시간 선택. 고르면 같은 화면에서 결과가 이어진다.
+  function sceneTimed(cueHtml, choices, seconds) {
+    return new Promise((resolve) => {
+      const box = sceneBody();
+      const text = box.appendChild(el('div', 'scene-text'));
+      text.appendChild(el('p', 'say', cueHtml));
+      const list = text.appendChild(el('div', 'scene-list'));
+
+      const bar = box.appendChild(el('div', 'scene-foot'));
+      const timerEl = bar.appendChild(el('div', 'timer', '<i></i>'));
+      const fill = timerEl.firstElementChild;
+
+      const btns = choices.map((label, i) => {
+        const n = list.appendChild(el('button', 'dopt'));
+        n.innerHTML = `<span class="dtext">${esc(label)}</span>`;
+        n.onclick = () => end(i);
+        return n;
+      });
+
+      let left = seconds * 1000, since = 0, timer = null, done = false;
+      const run = () => {
+        since = Date.now();
+        timer = setTimeout(() => end(-1), left);
+        fill.style.transition = `width ${left}ms linear`;
+        fill.style.width = '0%';
+      };
+      const hold = () => {
+        clearTimeout(timer);
+        left = Math.max(300, left - (Date.now() - since));
+        const pct = (fill.getBoundingClientRect().width / timerEl.getBoundingClientRect().width) * 100;
+        fill.style.transition = 'none';
+        fill.style.width = pct + '%';
+      };
+      const onVis = () => { if (document.hidden) hold(); else requestAnimationFrame(run); };
+
+      const end = (idx) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        document.removeEventListener('visibilitychange', onVis);
+        timerEl.remove();
+        btns.forEach((n, i) => { n.disabled = true; if (i !== idx) n.classList.add('faded'); });
+        setTimeout(() => resolve(idx), 450);
+      };
+
+      document.addEventListener('visibilitychange', onVis);
+      if (document.hidden) fill.style.width = '100%';
+      else requestAnimationFrame(run);
+    });
+  }
 
   function sceneOpen(img) {
     scene.className = 'on';
@@ -771,16 +829,17 @@
     await say(state.chased ? F.chase.out : F.stay.out);
   }
 
-  /* 5장 — 서른 걸음 뒤 */
+  /* 6장 — 서른 걸음 뒤. 갈림길마다 사진이 화면을 덮는다. */
   async function act5() {
     await say(S.act5.open, { silent: true });
     for (const j of S.act5.junctions) {
-      await say([{ w: j.where }], { silent: true });
+      sceneOpen(j.img);
       slow(true);
-      const pick = await timed(esc(j.cue), j.opts, 9, false, j.img);
+      const pick = await sceneTimed(esc(j.cue), j.opts, 9);
       slow(false);
-      if (pick === j.right) await say([{ s: j.win }]);
-      else await say([{ s: pick < 0 ? S.act5.slow : j.lose }]);
+      if (pick === j.right) await sceneSay([{ s: j.win }]);
+      else await sceneSay([{ s: pick < 0 ? S.act5.slow : j.lose }]);
+      sceneClose();
     }
   }
 
@@ -811,18 +870,22 @@
 
   /* 8장 — 체포. 그리고 수첩. */
   async function act7() {
-    if (state.chased) await plateCard('img/arrest.jpg');
-    await say(state.chased ? S.act7.openChase : S.act7.openStay);
+    // 챕터 제목이 화면을 비우니, 사진은 그 다음에 얹는다.
+    const opening = state.chased ? S.act7.openChase : S.act7.openStay;
+    await say(opening.slice(0, 1));
+    if (state.chased) { await plateCard('img/arrest.jpg'); await wait(1400); }
+    await say(opening.slice(1));
     await say(state.humiliation >= 6 ? S.act7.proud : S.act7.plain);
 
     if (!state.pages.length) { await say(S.act7.pocketEmpty); return; }
 
     await say(S.act7.pocket);
 
-    addLine(el('p', 'say q', esc(S.act7.tearLead)));
-    const list = addLine(el('div', 'pages'));
+    // 목록이 길 수 있으니 질문·목록·버튼을 한 덩어리로 아래 칸에 둔다.
     const bar = setFoot(el('div'));
-    bar.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+    bar.style.cssText = 'display:flex;flex-direction:column;gap:9px';
+    bar.appendChild(el('p', 'ask', esc(S.act7.tearLead)));
+    const list = bar.appendChild(el('div', 'pages'));
     const tear = new Set();
 
     state.pages.forEach((pg) => {
