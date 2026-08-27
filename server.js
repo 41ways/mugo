@@ -24,6 +24,8 @@ const MIME = {
   '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.svg': 'image/svg+xml',
+  '.jpg': 'image/jpeg',
+  '.png': 'image/png',
   '.woff2': 'font/woff2',
   '.ico': 'image/x-icon',
 };
@@ -182,9 +184,12 @@ function serveStatic(req, res, urlPath) {
       res.end('없다');
       return;
     }
+    // 코드는 자주 바뀌므로 매번 확인하게 하고, 사진만 오래 물고 있게 둔다.
+    const ext = path.extname(file);
+    const long = ext === '.jpg' || ext === '.png' || ext === '.svg' || ext === '.woff2';
     res.writeHead(200, {
-      'content-type': MIME[path.extname(file)] || 'application/octet-stream',
-      'cache-control': file.endsWith('.html') ? 'no-cache' : 'max-age=300',
+      'content-type': MIME[ext] || 'application/octet-stream',
+      'cache-control': long ? 'max-age=86400' : 'no-cache',
     });
     res.end(buf);
   });

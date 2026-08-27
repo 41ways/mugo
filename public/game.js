@@ -206,7 +206,6 @@
       back.onclick = done;
       pop.onclick = done;
       addEventListener('keydown', key, true);
-      requestAnimationFrame(() => { back.classList.add('on'); pop.classList.add('on'); });
     });
   }
 
