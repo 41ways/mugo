@@ -618,12 +618,11 @@
     const box = addLine(el('div', 'title'));
     box.innerHTML =
       `<h1 class="han">무고</h1>` +
-      `<p class="sub">誣告 · 無辜</p>` +
-      `<p class="gloss">안개가 들어오는 밤마다 사람이 하나씩 줄었다. 이번이 셋째다.</p>` +
-      `<p class="gloss">회항에는 판사가 없다. 마을에 들어온 탐정의 <b>한마디가 판결이 된다</b>.</p>`;
+      `<p class="sub">無辜</p>` +
+      `<p class="gloss">안개가 들어오는 밤마다 사람이 하나씩 줄었다. 이번이 셋째다.</p>`;
     const row = setFoot(el('div', 'row'));
     row.style.justifyContent = 'center';
-    const go = row.appendChild(el('button', 'btn', '기차에서 내린다'));
+    const go = row.appendChild(el('button', 'btn', '시작하기'));
     await new Promise((r) => { go.onclick = r; });
     stage.classList.remove('mid');
   }
