@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: mugo
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # 아래 넷은 Render 대시보드에서 직접 넣는다 (secret).
+      #   DATABASE_URL  — Neon/Supabase 등 Postgres 연결 문자열. 없으면 파일 저장(재시작 시 날아감).
+      #   SMTP_URL      — smtps://주소:앱비밀번호@smtp.gmail.com:465
+      #   MAIL_FROM     — 회항 경찰서 <주소>
+      #   PUBLIC_URL    — https://mugo.onrender.com
