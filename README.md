@@ -63,7 +63,8 @@ mailer.js     판결·접수 통지. SMTP 없으면 콘솔
 seeds.js      대기열이 비었을 때 내놓는 조서 10개
 public/
   story.js    대본 전부. 글자만 들어 있다
-  plates.js   관찰 장면의 그림과 단서 좌표
+  plates.js   관찰 장면의 사진·그림과 단서 좌표
+  img/        관찰 장면 사진 (전부 퍼블릭 도메인 — CREDITS.md)
   game.js     진행부
 tools/
   storymap.js 대본에서 분기도(HTML)를 뽑는다 — node tools/storymap.js

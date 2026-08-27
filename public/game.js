@@ -194,7 +194,10 @@
       const box = put(el('div', 'step'));
       box.appendChild(el('p', 'say whisper', esc(cfg.lead)));
 
-      const frame = box.appendChild(el('div', 'plate', plate.svg));
+      const frame = box.appendChild(el('div', 'plate' + (plate.img ? ' photo' : ''),
+        plate.img
+          ? `<img src="${plate.img}" alt="" loading="eager" decoding="async">`
+          : plate.svg));
       const hint = box.appendChild(el('div', 'hint'));
       const cap = cfg.max || plate.spots.length;
       const cards = box.appendChild(el('div'));

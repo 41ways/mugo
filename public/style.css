@@ -392,3 +392,13 @@ body.blind #vignette{
 body.blind .tap{color:var(--lamp); animation-duration:1.7s}
 .tap{animation-name:pulse2}
 @keyframes pulse2{0%,100%{opacity:.5}50%{opacity:1}}
+
+/* 사진 그림판 — 선 그림과 같은 자리에 앉되, 회항의 색으로 눌러둔다 */
+.plate.photo img{display:block; width:100%; height:auto}
+.plate.photo::after{
+  background:
+    radial-gradient(58% 68% at 50% 34%, rgba(216,162,74,.13), transparent 72%),
+    linear-gradient(180deg, rgba(8,8,10,.34), rgba(8,8,10,.12) 34%, rgba(8,8,10,.52));
+}
+.plate.photo{background:#050506}
+body.slow .plate.photo img{filter:contrast(1.04) brightness(.96)}
