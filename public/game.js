@@ -42,12 +42,22 @@
     stage.appendChild(node);
     return node;
   }
-  function toBottom() {
-    requestAnimationFrame(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }));
+  // 화면 밖으로 밀려난 옛 줄을 걷어낸다. 페이지가 길어지지 않게.
+  // 단, 아직 누를 수 있는 것이 들어 있는 덩어리는 건드리지 않는다.
+  function fit() {
+    for (let guard = 0; guard < 80; guard++) {
+      if (stage.scrollHeight <= stage.clientHeight + 2) break;
+      const first = stage.firstElementChild;
+      if (!first || stage.children.length < 2) break;
+      if (first.querySelector('button:not(:disabled), input:not([disabled]), textarea:not([disabled]), .hot:not(.done)')) break;
+      first.remove();
+    }
+    stage.scrollTop = stage.scrollHeight;
   }
+  const toBottom = fit;   // 예전 이름으로 부르는 자리가 많다
+
   function clear() {
     stage.innerHTML = '';
-    window.scrollTo(0, 0);
   }
 
   const state = {
@@ -57,7 +67,7 @@
     torn: [],        // 그중 찢어낸 장. 이것이 다음 사람에게 넘어간다.
     hits: [],
     humiliation: 0,
-    beatsLost: 0,
+    knewWay: false,   // 저녁에 적어둔 길로 들어갔는가
     caseData: null,
     myVerdict: null,
     traces: [],      // 오는 길에 몸에 남은 것들. 유치장의 남자가 이걸 읽는다.
@@ -619,18 +629,28 @@
   function verdictForm() {
     return new Promise((resolve) => {
       const box = put(el('div', 'step'));
-      box.appendChild(el('label', 'lab', '한 줄 소견 — 이 문장은 그 사람에게 그대로 간다 (비워도 된다)'));
+      box.appendChild(el('label', 'lab', '판결문 — 이 문장은 그 사람에게 그대로 간다. 짧아도 좋으니 반드시 적으시오.'));
       const ta = box.appendChild(el('textarea'));
       ta.rows = 2;
       ta.maxLength = 220;
       ta.placeholder = '예: 손등의 상처는 때린 사람의 것이 아니었다.';
-      const cnt = box.appendChild(el('div', 'count', '0 / 220'));
-      ta.oninput = () => { cnt.textContent = `${ta.value.length} / 220`; };
+      const cnt = box.appendChild(el('div', 'count'));
 
       const row = box.appendChild(el('div', 'row'));
       const g = row.appendChild(el('button', 'btn danger', '유죄 — 재판으로 넘긴다'));
       const i = row.appendChild(el('button', 'btn ghost', '무죄 — 풀어준다'));
+      // 한 줄도 없이 사람을 판결할 수는 없다.
+      const gate = () => {
+        const ok = ta.value.trim().length > 0;
+        g.disabled = i.disabled = !ok;
+        cnt.textContent = ok ? `${ta.value.length} / 220` : '판결문을 적어야 누를 수 있다';
+        cnt.classList.toggle('over', !ok);
+      };
+      ta.oninput = gate;
+      gate();
+
       const pick = (v) => () => {
+        if (!ta.value.trim()) return;
         g.disabled = i.disabled = true;
         ta.disabled = true;
         resolve({ v, reason: ta.value.trim() });
@@ -658,48 +678,21 @@
       cost: known.has(w.need) ? w.known : w.cost,
     })));
     const way = S.act3.ways[idx];
-    const knew = known.has(way.need);
-    state.beatsLost = knew ? way.known : way.cost;
-    await say([{ s: way.out }, knew ? { b: S.act3.knew } : { w: S.act3.blind }].concat(S.act3.run));
+    state.knewWay = known.has(way.need);
+    await say([{ s: way.out }, state.knewWay ? { b: S.act3.knew } : { w: S.act3.blind }].concat(S.act3.run));
   }
 
-  /* 4장 — 남은 박동만큼만 */
+  /* 5장 — 살릴 수 있을 것 같다. 아니다. */
   async function act4() {
     await say(S.act4.open);
 
-    let beats = Math.max(2, 7 - state.beatsLost);
-    const used = new Set();
+    // 저녁에 길을 적어둔 사람은 한 박자 일찍 닿는다. 그 한 박자만큼 더 희망을 본다.
+    const rounds = state.knewWay ? S.act4.rounds : S.act4.rounds.slice(0, 2);
+    if (!state.knewWay) await say(S.act4.late, { silent: true });
 
-    const box = put(el('div', 'step'));
-    const meter = box.appendChild(el('div', 'pulse'));
-    const drawMeter = () => {
-      meter.innerHTML = '<span>남은 박동</span><span class="dots">' +
-        Array.from({ length: Math.max(beats, 0) }, () => '<i></i>').join('') +
-        Array.from({ length: Math.max(0, 7 - Math.max(beats, 0)) }, () => '<i class="gone"></i>').join('') +
-        '</span>';
-    };
-    drawMeter();
-    box.appendChild(el('p', 'say whisper', esc(S.act4.lead)));
-    toBottom();
-
-    while (beats > 0) {
-      const opts = S.act4.actions.map((a) => ({
-        label: a.label, cost: a.cost, disabled: used.has(a.id) || a.cost > beats,
-      }));
-      // 할 수 있는 게 하나도 안 남으면 거기서 끝이다
-      if (!opts.some((o) => !o.disabled)) break;
-
-      const pick = await choose(null, opts);
-      const a = S.act4.actions[pick];
-      used.add(a.id);
-      beats -= a.cost;
-      if (a.gain) beats += a.gain;
-      drawMeter();
-
-      const lines = [{ s: a.out }];
-      if (a.say) lines.push({ who: '마르타 웬들', s: a.say });
-      if (a.post) lines.push({ s: a.post });
-      await say(lines);
+    for (const r of rounds) {
+      const pick = await choose(r.ask, r.opts.map((o) => o.label));
+      await say([{ s: r.opts[pick].out }].concat(r.after));
     }
 
     await say(S.act4.out);
@@ -709,11 +702,7 @@
     await say(F.lead, { silent: true });
     const pick = await choose(F.ask, [F.chase.label, F.stay.label]);
     state.chased = pick === 0;
-    if (state.chased) {
-      await say(F.chase.out);
-    } else {
-      await say(F.stay.out);
-    }
+    await say(state.chased ? F.chase.out : F.stay.out);
   }
 
   /* 5장 — 서른 걸음 뒤 */
@@ -885,6 +874,9 @@
 
     // 유치장. 사흘 전 당신이 밖에서 들여다보던 그 문이다.
     await say(S.act9.cellDoor);
+    plateCard(S.act9.cellIn);
+    await wait(1600);
+    await say(S.act9.cellShut);
     await say(S.act9.lastVisit);
     plateCard('img/cell.jpg');
 

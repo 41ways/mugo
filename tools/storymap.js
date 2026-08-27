@@ -135,22 +135,21 @@ const STATIONS = [
       out: w.out,
       tag: `수첩에 있으면 −${w.known} · 없으면 −${w.cost}`,
       later: [
-        { scope: 'run', to: 'A5-B', text: `제5장 박동 예산 = 7 − ${w.known}~${w.cost} (최소 2)` },
+        { scope: 'run', to: 'A5-B', text: '수첩에 있는 길이면 제5장에서 선택이 한 번 더 주어진다 (희망을 한 번 더 본다)' },
         { scope: 'run', text: '저녁에 적어둔 길로 들어가면 “가장 빠른 길을 이미 알고 있었다”가 된다' },
       ],
     })),
     note: '알고 들어가면 빠르다. 그리고 “이 집에 들어오는 가장 빠른 길을 이미 알고 있었다”가 된다.' },
 
-  { id: 'A5-B', act: '제5장', title: '지혈 — 남은 박동만큼', kind: 'choice',
-    body: '무엇을 해도 그녀는 죽는다. 고르는 것은 죽기 전까지 무엇을 볼 것인가뿐.',
-    rows: S.act4.actions.map((a) => ({
-      label: a.label, out: a.out, tag: `박동 −${a.cost}${a.gain ? ` / +${a.gain}` : ''}`,
-      later: [a.gain
-        ? { scope: 'run', to: 'A5-B', text: `박동을 ${a.gain} 돌려받는다. 실질 +${a.gain - a.cost}` }
-        : a.say
-          ? { scope: 'now', text: `그녀가 “${a.say}”라고 말한다. 이 장면 안에서만. 기록되지는 않는다` }
-          : { scope: 'now', text: '이 장면 안에서만. 수첩에는 안 남는다 — 적을 시간이 없다' }],
-    })) },
+  { id: 'A5-B', act: '제5장', title: '지혈 — 세 번의 선택', kind: 'choice',
+    body: '숫자도 자원도 없다. 무엇을 골라도 나아지는 것처럼 보이고, 무엇을 골라도 그녀는 죽는다.',
+    rows: S.act4.rounds.map((r, i) => ({
+      label: `${i + 1}. ${r.ask}`,
+      out: r.opts.map((o) => o.label).join(' / '),
+      tag: i === 2 ? '수첩에 길을 적어둔 경우에만' : null,
+      later: [{ scope: 'now', text: `무엇을 고르든 → ${(r.after[0].b || r.after[0].s || '').slice(0, 40)}…` }],
+    })),
+    note: '제4장에서 저녁에 적어둔 길로 들어갔으면 세 번, 헤맸으면 두 번. 그 한 번만큼 희망을 덜 본다.' },
 
   { id: 'A5-F', act: '제5장', title: S.act4.fork.ask, kind: 'fork', heavy: true,
     lanes: [

@@ -23,7 +23,7 @@ html,body{height:100%}
 body{
   margin:0; background:var(--ink); color:var(--paper);
   font-family:var(--serif); line-height:1.9; letter-spacing:-.01em;
-  overflow-x:hidden;
+  overflow:hidden;
   -webkit-font-smoothing:antialiased;
 }
 
@@ -57,12 +57,28 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
 
 /* ── 무대 ───────────────────────────────────────────── */
 
+/* 한 장은 한 화면 안에서 끝난다. 페이지가 길어지지 않고, 오래된 줄이 위로 밀려 사라진다. */
 #stage{
   position:relative; z-index:10;
+  height:100vh; height:100dvh;
   max-width:760px; margin:0 auto;
-  padding:clamp(30px,7vh,74px) clamp(18px,5vw,28px) 96px;
-  min-height:100%;
+  padding:clamp(18px,4vh,42px) clamp(16px,5vw,28px) clamp(20px,4vh,40px);
+  display:flex; flex-direction:column;
+  overflow-y:auto; overscroll-behavior:contain;
+  scrollbar-width:none;
 }
+#stage::-webkit-scrollbar{display:none}
+/* 아래에서부터 쌓인다 */
+#stage::before{content:''; flex:none; margin-top:auto}
+#stage > *{flex:none}
+/* 제목·판결, 그리고 장면 사진이나 조서가 있는 화면은 가운데에 놓는다.
+   말만 오갈 때는 아래에서부터 올라오게 두는 편이 읽기 편하다. */
+#stage:has(.title)::after,
+#stage:has(.verdictbig)::after,
+#stage:has(.plate)::after,
+#stage:has(.file)::after{content:''; flex:none; margin-bottom:auto}
+.step{will-change:opacity}
+.step.gone{opacity:0; transition:opacity .35s}
 .step{animation:rise .7s cubic-bezier(.2,.7,.3,1) both}
 @keyframes rise{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
 
@@ -136,11 +152,11 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
 
 /* ── 선택지 ─────────────────────────────────────────── */
 
-.opts{display:flex; flex-direction:column; gap:9px; margin:24px 0 8px}
+.opts{display:flex; flex-direction:column; gap:7px; margin:18px 0 6px}
 button.opt{
   font:inherit; text-align:left; cursor:pointer; color:var(--paper);
   background:rgba(255,255,255,.017); border:1px solid var(--line);
-  border-radius:3px; padding:14px 17px; font-size:15.5px; line-height:1.65;
+  border-radius:3px; padding:11px 16px; font-size:15.5px; line-height:1.55;
   transition:border-color .18s, background .18s, transform .18s;
 }
 button.opt:hover:not(:disabled){border-color:var(--lamp); background:rgba(216,162,74,.06); transform:translateX(3px)}
@@ -213,6 +229,7 @@ button.opt.right{border-color:#5c7a52}
   box-shadow:0 14px 34px rgba(0,0,0,.5); font-size:15px; line-height:1.85;
   transform:rotate(-.25deg);
 }
+.file{max-height:46dvh; overflow-y:auto}
 .file h4{
   margin:0 0 14px; font-family:var(--mono); font-size:10.5px; letter-spacing:.3em;
   text-transform:uppercase; color:#8a7c66; font-weight:400;
@@ -257,20 +274,6 @@ label.lab{
 }
 .count{font-family:var(--mono); font-size:11px; color:var(--faint); text-align:right; margin-top:6px}
 .count.over{color:var(--blood)}
-
-/* ── 심장 박동 ──────────────────────────────────────── */
-
-.pulse{
-  display:flex; align-items:center; gap:10px; margin:18px 0 4px;
-  font-family:var(--mono); font-size:11px; letter-spacing:.2em; color:var(--faint);
-}
-.pulse .dots{display:flex; gap:5px}
-.pulse .dots i{
-  width:9px; height:9px; border-radius:50%; background:var(--blood); display:block;
-  animation:thump 1.15s ease-in-out infinite;
-}
-.pulse .dots i.gone{background:transparent; border:1px solid var(--line); animation:none}
-@keyframes thump{0%,100%{transform:scale(.82);opacity:.55}18%{transform:scale(1.15);opacity:1}}
 
 /* ── 어둠 (몸싸움) ──────────────────────────────────── */
 
@@ -417,6 +420,7 @@ body.blind .tap{background:rgba(216,162,74,.13); border-color:var(--lamp)}
 
 /* 사진 그림판 — 선 그림과 같은 자리에 앉되, 회항의 색으로 눌러둔다 */
 .plate.photo img{display:block; width:100%; height:auto}
+.plate.photo{max-width:min(100%, 78dvh); margin-inline:auto}
 .plate.photo::after{
   background:
     radial-gradient(58% 68% at 50% 34%, rgba(216,162,74,.13), transparent 72%),
