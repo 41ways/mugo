@@ -439,6 +439,14 @@
     return out;
   }
 
+  // 장면 사진 한 장만 띄운다. 관찰이 아니라 보여주기만 할 때.
+  function plateCard(img) {
+    const n = put(el('div', 'step')).appendChild(
+      el('div', 'plate photo', `<img src="${img}" alt="" decoding="async">`));
+    toBottom();
+    return n;
+  }
+
   /* ── 서버 ───────────────────────────────────────────── */
 
   async function api(path, body) {
@@ -719,6 +727,8 @@
   /* 6장 — 어둠 */
   async function act6() {
     await say(S.act6.open);
+    if (S.act6.img) { plateCard(S.act6.img); await wait(1800); }
+    await say(S.act6.seen);
     document.body.classList.add('blind');
     for (const b of S.act6.beats) {
       const pick = await blindBeat(b, 7);

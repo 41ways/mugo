@@ -112,81 +112,9 @@
       ],
     },
 
-    /* ── 응접실 (시신) ─────────────────────────────────── */
-    parlour: {
-      svg: `<svg ${V} xmlns="http://www.w3.org/2000/svg">
-        ${base('p')}
-        <ellipse cx="720" cy="120" rx="290" ry="200" fill="url(#glowp)"/>
-        <!-- 벽 · 안쪽에서 열린 창 -->
-        <path d="M0 0h1000v340H0z" fill="#0c0c0f"/>
-        <rect x="640" y="46" width="180" height="180" fill="#141a1e" stroke="${L2}" stroke-width="2"/>
-        <path d="M730 46v180" stroke="${L2}" stroke-width="2"/>
-        <path d="M730 46l104 30v180l-104-30z" fill="#0a0f13" stroke="${L3}" stroke-width="2"/>
-        <!-- 찢긴 커튼 -->
-        <path d="M596 30h56v300q-28-14-56 0z" fill="#12100e" stroke="${L1}" stroke-width="2"/>
-        <path d="M840 30h58v190l-22 22 22 24v56q-30-16-58 0z" fill="#12100e" stroke="${L1}" stroke-width="2"/>
-        <path d="M876 220l-36 26" stroke="${L3}" stroke-width="2"/>
-        <!-- 넘어진 탁자 -->
-        <path d="M96 300h150v14H96z" fill="#0e0e11" stroke="${L2}" stroke-width="2" transform="rotate(-16 170 306)"/>
-        <path d="M120 316l-16 60M232 300l16 60" stroke="${L2}" stroke-width="4"/>
-        <!-- 등유등, 꺼진 것 -->
-        <path d="M282 268h48l-10 34h-28z" fill="#0d0d10" stroke="${L2}" stroke-width="2"/>
-        <!-- 바닥 -->
-        <path d="M0 340h1000v180H0z" fill="#08080a"/>
-        <path d="M0 340h1000" stroke="${L1}" stroke-width="2"/>
-        <!-- 양탄자 -->
-        <path d="M180 370h660v140H180z" fill="#0c0a0a" stroke="#332724" stroke-width="2"/>
-        <!-- 시신 -->
-        <path d="M356 452c60-26 150-30 230-14 54 10 84 4 108-10" stroke="#212123" stroke-width="46" fill="none" stroke-linecap="round"/>
-        <circle cx="342" cy="444" r="30" fill="#1c1c1e" stroke="${L2}" stroke-width="2"/>
-        <!-- 목의 상처 -->
-        <path d="M368 452q22 8 42 4" stroke="#7d1c14" stroke-width="7" fill="none" stroke-linecap="round"/>
-        <!-- 번진 피 -->
-        <path d="M330 480q-52 8-70 34 44 16 96 6 40-8 56-24-38-20-82-16z" fill="#2a0d0a"/>
-        <path d="M320 492q-30 6-40 18 26 10 58 4" fill="#4a120c" opacity=".8"/>
-        <!-- 뻗은 팔 · 손 -->
-        <path d="M470 470q40 26 84 22" stroke="#1f1f21" stroke-width="22" fill="none" stroke-linecap="round"/>
-        <path d="M556 490q16 2 26-4" stroke="#3a3733" stroke-width="7" fill="none" stroke-linecap="round"/>
-        <path d="M566 486l6-8M574 490l8-6M580 496l8-4" stroke="#4d6f66" stroke-width="3"/>
-        <!-- 안개처럼 깔린 어둠 -->
-        <path d="M0 500h1000v20H0z" fill="#050506"/>
-      </svg>`,
-      spots: [],
-    },
+    /* ── 부두 ────────────────────────────────────────────── */
+    dock: { img: 'img/dock.jpg', spots: [] },
 
-    /* ── 부두 ─────────────────────────────────────────── */
-    dock: {
-      svg: `<svg ${V} xmlns="http://www.w3.org/2000/svg">
-        ${base('d')}
-        <ellipse cx="120" cy="200" rx="200" ry="160" fill="url(#glowd)"/>
-        <path d="M96 60v120" stroke="${L2}" stroke-width="3"/>
-        <path d="M74 180h44l-8 26H82z" fill="#0d0d10" stroke="${LAMP}" stroke-width="2"/>
-        <circle cx="96" cy="194" r="6" fill="${LAMP}" opacity=".9"/>
-        <!-- 물 -->
-        <path d="M0 330h1000v190H0z" fill="#070a0d"/>
-        <g stroke="#131a20" stroke-width="3" fill="none" opacity=".9">
-          <path d="M0 366q120-14 240 0t240 0 240 0 280 0"/>
-          <path d="M0 408q140-16 280 0t280 0 260 0 180 0"/>
-          <path d="M0 452q160-18 320 0t320 0 360 0"/>
-          <path d="M0 496q180-16 360 0t340 0 300 0"/>
-        </g>
-        <!-- 널판 -->
-        <path d="M0 300h1000v34H0z" fill="#0d0c0b" stroke="${L1}" stroke-width="2"/>
-        <g stroke="#17150f" stroke-width="2">
-          <path d="M120 300v34M240 300v34M360 300v34M480 300v34M600 300v34M720 300v34M840 300v34"/>
-        </g>
-        <!-- 말뚝 -->
-        <g fill="#0a0908" stroke="${L2}" stroke-width="2">
-          <rect x="188" y="252" width="30" height="52"/><rect x="486" y="246" width="30" height="58"/>
-          <rect x="784" y="256" width="30" height="48"/>
-        </g>
-        <!-- 밧줄 -->
-        <path d="M203 258q142 34 298 0M501 252q142 40 298 8" stroke="${L2}" stroke-width="3" fill="none"/>
-        <!-- 안개 -->
-        <path d="M0 286q200-24 400 4t600-8v40H0z" fill="#0f1215" opacity=".8"/>
-      </svg>`,
-      spots: [],
-    },
   };
 
   window.PLATES = PLATES;
