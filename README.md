@@ -30,24 +30,44 @@ npm test        # 저장소·API 왕복 검사
 
 ### 환경변수
 
-넷 다 없어도 게임은 돌아간다. 없는 만큼만 기능이 빠진다.
+다 없어도 게임은 돌아간다. 없는 만큼만 기능이 빠진다.
 
 | 변수 | 없으면 | 예시 |
 |---|---|---|
 | `DATABASE_URL` | `data/statements.json` 파일에 저장 (재시작하면 날아감) | `postgres://…` (Neon·Supabase 무료 등급) |
+| `RESEND_API_KEY` | `SMTP_URL` 로 넘어간다 | `re_…` ([resend.com](https://resend.com) 무료 월 3천 통) |
 | `SMTP_URL` | 메일을 콘솔에만 찍음. 조서 번호 링크로는 확인 가능 | `smtps://아이디@gmail.com:앱비밀번호@smtp.gmail.com:465` |
 | `MAIL_FROM` | `회항 경찰서 <no-reply@localhost>` | `회항 경찰서 <아이디@gmail.com>` |
-| `PUBLIC_URL` | `http://localhost:8787` | `https://mugo.onrender.com` |
+| `PUBLIC_URL` | `http://localhost:8787` | `https://mug0.onrender.com` |
+
+메일 경로는 `RESEND_API_KEY` → `SMTP_URL` → 콘솔 순으로 있는 것을 쓴다.
 
 Gmail은 2단계 인증을 켠 뒤 **앱 비밀번호**를 발급받아 쓴다. 계정 비밀번호로는 안 된다.
+
+`PUBLIC_URL` 은 판결 메일 안의 링크에 그대로 박힌다. 실제 도메인과 한 글자라도 다르면
+받은 사람은 죽은 링크를 받는다. 배포 후 반드시 눈으로 맞춰볼 것.
 
 ### Render 배포
 
 `render.yaml` 이 들어 있다. Render 대시보드에서 이 저장소를 연결하면 그대로 뜬다.
-위 네 변수는 대시보드 → Environment 에 직접 넣는다 (`render.yaml` 에는 비밀을 적지 않는다).
+위 변수들은 대시보드 → Environment 에 직접 넣는다 (`render.yaml` 에는 비밀을 적지 않는다).
+
+**무료 플랜에서는 SMTP 가 안 된다.** Render 는 2025-09-26 부터 무료 웹 서비스의
+아웃바운드 25·465·587 포트를 전부 막는다. `SMTP_URL` 을 넣어도 `Connection timeout`
+으로 죽는다 — 앱 비밀번호가 틀린 게 아니다. 포트를 안 타는 `RESEND_API_KEY` 를 쓰거나,
+유료 인스턴스로 올려야 한다.
 
 무료 등급은 15분 놀면 잠들고, 첫 접속에 30초쯤 걸린다. 파일 시스템은 재배포 때마다 지워지므로
 `DATABASE_URL` 을 반드시 붙여야 대기열이 유지된다.
+
+### 밀린 통지 다시 보내기
+
+발송이 실패하면 주소를 지우지 않고 남겨둔다. 나중에 경로를 고친 뒤 밀린 것을 한 번에 보낼 수 있다.
+
+```
+DATABASE_URL=… RESEND_API_KEY=… node tools/resend.js          # 누가 밀렸는지 본다
+DATABASE_URL=… RESEND_API_KEY=… node tools/resend.js --send   # 실제로 보낸다
+```
 
 ## 개인정보
 

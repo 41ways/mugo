@@ -1,6 +1,7 @@
 services:
   - type: web
-    name: mugo
+    # 실제로 떠 있는 서비스 이름. onrender.com 주소가 여기서 나온다 — 0 은 숫자다.
+    name: mug0
     runtime: node
     plan: free
     region: singapore
@@ -10,8 +11,11 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
-      # 아래 넷은 Render 대시보드에서 직접 넣는다 (secret).
-      #   DATABASE_URL  — Neon/Supabase 등 Postgres 연결 문자열. 없으면 파일 저장(재시작 시 날아감).
-      #   SMTP_URL      — smtps://주소:앱비밀번호@smtp.gmail.com:465
-      #   MAIL_FROM     — 회항 경찰서 <주소>
-      #   PUBLIC_URL    — https://mugo.onrender.com
+      # 아래는 Render 대시보드에서 직접 넣는다 (secret).
+      #   DATABASE_URL    — Neon/Supabase 등 Postgres 연결 문자열. 없으면 파일 저장(재시작 시 날아감).
+      #   RESEND_API_KEY  — re_… 무료 플랜에서 메일을 보내려면 이것뿐이다. 아래 SMTP 주석을 볼 것.
+      #   MAIL_FROM       — 회항 경찰서 <주소>
+      #   PUBLIC_URL      — https://mug0.onrender.com   (0 은 숫자. name 과 반드시 맞출 것)
+      #
+      # SMTP_URL 은 로컬 개발용으로만 쓴다. Render 무료 플랜은 2025-09-26 부터
+      # 아웃바운드 25·465·587 을 전부 막아서, 여기 넣어봐야 Connection timeout 이 난다.
