@@ -59,9 +59,11 @@
   // 넘길 때가 됐는지. 화면 높이를 아직 못 재는 순간이 있어서, 못 재면 계산으로 대신한다.
   // (프레임을 기다리면 탭이 가려져 있을 때 영영 안 돌아온다.)
   function overflows() {
-    const avail = flow.clientHeight > 40
+    // 선택지가 나중에 뜰 자리까지 미리 비워둔다. 안 그러면 선택지가 글을 덮는다.
+    const room = Math.max(0, 168 - opts.offsetHeight);
+    const avail = (flow.clientHeight > 40
       ? flow.clientHeight
-      : Math.max(160, stage.clientHeight - opts.offsetHeight - tapslot.offsetHeight - 72);
+      : Math.max(160, stage.clientHeight - opts.offsetHeight - tapslot.offsetHeight - 72)) - room;
     return flow.scrollHeight > avail + 1;
   }
 
@@ -123,25 +125,8 @@
 
   /* ── 서술 ───────────────────────────────────────────── */
 
-  // 한 박자 쉰다. 그동안 누르면 바로 다음 줄로 넘어간다.
-  function beat(ms) {
-    return new Promise((resolve) => {
-      let done = false;
-      const fin = () => {
-        if (done) return;
-        done = true;
-        clearTimeout(t);
-        removeEventListener('click', onClick, true);
-        removeEventListener('keydown', onKey, true);
-        resolve();
-      };
-      const onClick = () => fin();
-      const onKey = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fin(); } };
-      const t = setTimeout(fin, ms);
-      addEventListener('click', onClick, true);
-      addEventListener('keydown', onKey, true);
-    });
-  }
+  // 한 박자 쉰다. 누른다고 건너뛰지 않는다 — 그러다 다음 화면까지 넘어가버린다.
+  const beat = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // 화면이 실제로 넘어갈 때만 「계속」이 뜬다. 그 외에는 글이 저절로 흐른다.
   function turn(full) {
@@ -151,11 +136,13 @@
         resolve();
         return;
       }
-      setTap(el('div', 'tap', '계속'));
+      const tapEl = setTap(el('div', 'tap', '계속'));
       const go = (e) => {
         if (e.type === 'keydown') {
           if (e.key !== 'Enter' && e.key !== ' ') return;
           e.preventDefault();
+        } else if (!tapEl.contains(e.target)) {
+          return;   // 계속 버튼을 눌러야만 넘어간다
         }
         removeEventListener('keydown', go, true);
         removeEventListener('click', go, true);
@@ -181,7 +168,7 @@
     if (l.w) return el('p', 'say whisper', words(l.w));
     return el('p', 'say', words(l.s));
   };
-  const pace = (l) => l.hr ? 260 : Math.min(2000, 480 + wordCount(l.s || l.c || l.b || l.w || '') * 52);
+  const pace = (l) => l.hr ? 180 : Math.min(1250, 300 + wordCount(l.s || l.c || l.b || l.w || '') * 32);
 
   // 글은 위에서 아래로 흐르고, 아래에 닿으면 그때 「계속」이 뜬다.
   async function say(lines, o = {}) {
@@ -485,14 +472,15 @@
         if (i >= lines.length) return arrive();
         const l = lines[i++];
         text.appendChild(sceneNode(l));
-        timer = setTimeout(step, l.hr ? 240 : Math.min(1900, 420 + wordCount(l.s || l.b || l.w || '') * 46));
+        timer = setTimeout(step, l.hr ? 180 : Math.min(1250, 300 + wordCount(l.s || l.b || l.w || '') * 32));
       };
       const flush = () => {
         clearTimeout(timer);
         while (i < lines.length) text.appendChild(sceneNode(lines[i++]));
         arrive();
       };
-      const arrive = () => { if (ended) return; ended = true; bar.appendChild(el('div', 'tap', '계속')); };
+      let tapEl = null;
+      const arrive = () => { if (ended) return; ended = true; tapEl = bar.appendChild(el('div', 'tap', '계속')); };
       const finish = () => {
         if (closed) return;
         closed = true;
@@ -505,8 +493,11 @@
         if (e.type === 'keydown') {
           if (e.key !== 'Enter' && e.key !== ' ') return;
           e.preventDefault();
+        } else if (!ended || !tapEl || !tapEl.contains(e.target)) {
+          return;
         }
-        if (!ended) flush(); else finish();
+        if (!ended) return;
+        finish();
       };
       addEventListener('keydown', onGo, true);
       addEventListener('click', onGo, true);
@@ -619,7 +610,7 @@
     box.innerHTML =
       `<h1 class="han">무고</h1>` +
       `<p class="sub">無辜</p>` +
-      `<p class="gloss">안개가 들어오는 밤마다 사람이 하나씩 줄었다. 이번이 셋째다.</p>`;
+      `<p class="gloss">안개가 들어오는 밤마다 사람이 하나씩 죽었다. 이번이 세 번째다.</p>`;
     const row = setFoot(el('div', 'row'));
     row.style.justifyContent = 'center';
     const go = row.appendChild(el('button', 'btn', '시작하기'));

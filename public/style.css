@@ -72,9 +72,14 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
 #flow > *{flex:none}
 .plate, .file, .pages{margin-block:clamp(8px,1.6vh,16px)}
 #foot{flex:none; display:flex; flex-direction:column; gap:clamp(10px,1.7vh,18px)}
-/* 선택지는 계속 버튼 자리를 침범하지 않는다 */
+/* 선택지는 계속 버튼 자리를 침범하지 않고, 이야기 글과도 선으로 구분된다 */
 #opts{display:flex; flex-direction:column; gap:8px}
 #opts:empty{display:none}
+#opts:not(:empty){
+  border:1px solid var(--line); border-radius:4px;
+  background:rgba(255,255,255,.014);
+  padding:clamp(11px,1.7vh,15px) clamp(12px,2vw,16px);
+}
 #tapslot{flex:none; min-height:46px; display:flex; align-items:center}
 /* 관찰 화면 — 사진을 크게 쓰고 가운데로 모은다 */
 #stage.look #flow{display:flex; flex-direction:column; justify-content:center; gap:4px}
