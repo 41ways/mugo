@@ -1,11 +1,18 @@
-# 사진 출처
+# 이미지 출처
 
-관찰 장면의 사진은 전부 **퍼블릭 도메인**이다. 어둡게 깔고 색을 얹는 보정만 했다.
+관찰 장면의 이미지는 생성형 AI(Google Gemini)로 만든 것이다. 각 장면의 단서 목록에 맞춰
+필요한 요소가 전부 프레임에 들어오도록 프롬프트를 짰고, 받은 결과는 `ffmpeg` 으로
+워터마크 제거 · 테두리 자르기 · 대비 · 세피아 · 비네팅만 손봤다.
 
-| 쓰인 곳 | 원본 | 출처 |
-|---|---|---|
-| 유치장 (`img/cell.jpg`) | Historic American Buildings Survey — Knox County Jail, Knoxville, Illinois (HABS ILL-248) | [위키미디어 공용](https://commons.wikimedia.org/wiki/Category:Prison_cells_in_the_United_States) · 미국 의회도서관 |
+| 파일 | 쓰인 곳 |
+|---|---|
+| `img/office.jpg` | 제1장 · 경찰서 소장실 (관찰 6) |
+| `img/cell.jpg` | 제2장 · 유치장 (관찰 6) |
+| `img/manor.jpg` | 제3장 · 웬들 저택 (관찰 7) |
+| `img/j1.jpg` | 제6장 · 3층 복도 |
+| `img/j2.jpg` | 제6장 · 뒷골목 |
 
-HABS(Historic American Buildings Survey)는 미국 정부가 만든 기록물이라 저작권이 없다.
+아직 없는 것: `img/parlour.jpg` (응접실), `img/dock.jpg` (부두), `img/j3.jpg` (광장 내리막).
+없는 동안에는 선 그림(`plates.js` 안의 SVG)이나 글자만으로 대체된다.
 
-보정은 `ffmpeg` 로 자르기 · 대비 · 세피아 · 비네팅만 넣었다. 원본을 알아볼 수 없게 바꾸지는 않았다.
+프롬프트 원문은 촬영 지시서에 있다.

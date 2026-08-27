@@ -301,9 +301,10 @@
 
   // 제한 시간. 탭을 가리면 멈춘다 — 브라우저가 타이머를 늦춰버려서,
   // 돌아왔을 때 이미 지나 있으면 그건 플레이어 잘못이 아니다.
-  function timed(cueHtml, opts, seconds, dark) {
+  function timed(cueHtml, opts, seconds, dark, img) {
     return new Promise((resolve) => {
       const box = put(el('div', 'step'));
+      if (img) box.appendChild(el('div', 'plate photo', `<img src="${img}" alt="">`));
       const pane = box.appendChild(el('div', dark ? 'dark' : ''));
       if (dark) {
         pane.appendChild(el('div', 'wave',
@@ -708,7 +709,7 @@
     for (const j of S.act5.junctions) {
       await say([{ w: j.where }], { silent: true });
       slow(true);
-      const pick = await timed(esc(j.cue), j.opts, 9);
+      const pick = await timed(esc(j.cue), j.opts, 9, false, j.img);
       slow(false);
       if (pick === j.right) await say([{ s: j.win }]);
       else await say([{ s: pick < 0 ? S.act5.slow : j.lose }]);
