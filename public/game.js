@@ -581,6 +581,19 @@
     return addBlock(f);
   }
 
+  // 찢긴 장에서 떠낸 것. 원문이 아니라 성격만 다음 사람에게 넘어간다.
+  function tornSummary(torn) {
+    if (!torn.length) return [];
+    const T = S.act2.torn;
+    const ko = ['', '한', '두', '세', '네', '다섯', '여섯', '일곱'];
+    const out = [T.count.replace('{n}', ko[torn.length] || String(torn.length))];
+    if (torn.some((p) => p.cat === 'entry')) out.push(T.entry);
+    if (torn.some((p) => p.cat === 'habit')) out.push(T.habit);
+    if (torn.length >= 4) out.push(T.many);
+    out.push(T.tail);
+    return out;
+  }
+
   /* ── 서버 ───────────────────────────────────────────── */
 
   async function api(path, body) {
@@ -981,7 +994,10 @@
         player: state.player, name: state.name, answers, clues: tornSummary(state.torn),
         caught: state.chased ? 'dock' : 'house', email,
       });
-    } catch { /* 서버가 죽어도 이야기는 끝까지 간다 */ }
+    } catch (e) {
+      // 서버가 죽어도 이야기는 끝까지 가되, 무슨 일이 있었는지는 남긴다.
+      console.error('[진술 제출 실패]', e);
+    }
 
     clear();
     hood.remove();
