@@ -2,31 +2,46 @@
 
 // 판결 통지서를 보낸다.
 //
-// 길은 셋. 위에서부터 있는 것을 쓴다.
+// 길은 넷. 위에서부터 있는 것을 쓴다.
 //
-//   1) RESEND_API_KEY — Resend 에 HTTPS(443) 로 던진다. 포트를 안 탄다.
-//   2) SMTP_URL       — nodemailer 로 직접 SMTP 를 문다. 로컬 개발용.
-//   3) 아무것도 없음   — 콘솔에만 찍는다.
+//   1) BREVO_API_KEY  — Brevo 에 HTTPS(443) 로 던진다. 포트를 안 탄다.
+//   2) RESEND_API_KEY — Resend 에 HTTPS(443) 로 던진다. 포트를 안 탄다.
+//   3) SMTP_URL       — nodemailer 로 직접 SMTP 를 문다. 로컬 개발용.
+//   4) 아무것도 없음   — 콘솔에만 찍는다.
 //
 // Render 무료 플랜은 2025-09-26 부터 아웃바운드 25·465·587 을 전부 막았다.
 // 거기서 SMTP 는 무조건 Connection timeout 이 난다. 코드도 앱 비밀번호도
-// 잘못된 게 아니다. 포트를 안 타는 HTTPS API 라야 나간다 — 그게 1) 이 있는 이유다.
+// 잘못된 게 아니다. 포트를 안 타는 HTTPS API 라야 나간다 — 그게 1)·2) 가 있는 이유다.
+//
+// 1) 과 2) 중에 1) 이 먼저인 이유. Resend 는 도메인을 인증해야 남에게 보낼 수 있다.
+// 인증 전에는 onboarding@resend.dev 로 「내 계정 주소에만」 갈 수 있어서, 모르는
+// 사람에게 판결을 보내야 하는 이 게임에는 못 쓴다. Brevo 는 발신자 주소 한 개만
+// 인증하면(gmail 주소도 된다) 아무에게나 보낼 수 있다. 도메인이 없으면 Brevo 다.
 
 const nodemailer = require('nodemailer');
 
 const FROM = process.env.MAIL_FROM || '회항 경찰서 <no-reply@localhost>';
 const SITE = (process.env.PUBLIC_URL || 'http://localhost:8787').replace(/\/$/, '');
 
+const BREVO_KEY = process.env.BREVO_API_KEY || '';
 const RESEND_KEY = process.env.RESEND_API_KEY || '';
 
+// Brevo 는 이름과 주소를 따로 받는다. "회항 경찰서 <a@b.c>" 를 갈라둔다.
+function splitFrom(s) {
+  const m = /^\s*(.*?)\s*<\s*([^>]+)\s*>\s*$/.exec(s);
+  return m ? { name: m[1] || undefined, email: m[2] } : { email: String(s).trim() };
+}
+
 let transport = null;
-if (RESEND_KEY) {
+if (BREVO_KEY) {
+  console.log('[mail] Brevo (HTTPS)');
+} else if (RESEND_KEY) {
   console.log('[mail] Resend (HTTPS)');
 } else if (process.env.SMTP_URL) {
   transport = nodemailer.createTransport(process.env.SMTP_URL);
   console.log('[mail] SMTP');
 } else {
-  console.warn('[mail] RESEND_API_KEY·SMTP_URL 둘 다 없음 — 메일은 콘솔에만 찍힌다.');
+  console.warn('[mail] 발송 경로 없음 — 메일은 콘솔에만 찍힌다.');
 }
 
 // 받침을 보고 조사를 고른다. 이름 뒤에 괄호가 붙으면 이야기의 김이 샌다.
@@ -100,6 +115,30 @@ function verdictMail(row) {
   };
 }
 
+// Brevo. 포트를 타지 않으므로 SMTP 를 막는 곳에서도 나간다.
+// 발신자 주소는 Brevo 대시보드에서 미리 인증해둬야 한다 — 안 그러면 여기서 거절당한다.
+async function viaBrevo(to, mail) {
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': BREVO_KEY,
+      'content-type': 'application/json',
+      accept: 'application/json',
+    },
+    body: JSON.stringify({
+      sender: splitFrom(FROM),
+      to: [{ email: to }],
+      subject: mail.subject,
+      htmlContent: mail.html,
+      textContent: mail.text,
+    }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  // 실패 사유를 그대로 물고 나온다. 키 오류·발신자 미인증이 여기서 걸린다.
+  if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 300)}`);
+  return (await res.json()).messageId;
+}
+
 // Resend. 포트를 타지 않으므로 SMTP 를 막는 곳에서도 나간다.
 async function viaResend(to, mail) {
   const res = await fetch('https://api.resend.com/emails', {
@@ -120,12 +159,15 @@ async function viaResend(to, mail) {
 
 async function send(to, mail) {
   if (!to) return false;
-  if (!RESEND_KEY && !transport) {
+  if (!BREVO_KEY && !RESEND_KEY && !transport) {
     console.log(`\n[mail:콘솔] → ${to}\n  ${mail.subject}\n${mail.text}\n`);
     return false;
   }
   try {
-    if (RESEND_KEY) {
+    if (BREVO_KEY) {
+      const id = await viaBrevo(to, mail);
+      console.log(`[mail] 발송 → ${to} : ${mail.subject} (${id})`);
+    } else if (RESEND_KEY) {
       const id = await viaResend(to, mail);
       console.log(`[mail] 발송 → ${to} : ${mail.subject} (${id})`);
     } else {
@@ -143,5 +185,5 @@ async function send(to, mail) {
 module.exports = {
   sendVerdict: (row) => send(row.email, verdictMail(row)),
   verdictMail,
-  enabled: () => !!RESEND_KEY || !!transport,
+  enabled: () => !!BREVO_KEY || !!RESEND_KEY || !!transport,
 };

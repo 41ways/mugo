@@ -13,7 +13,8 @@ services:
         value: "22"
       # 아래는 Render 대시보드에서 직접 넣는다 (secret).
       #   DATABASE_URL    — Neon/Supabase 등 Postgres 연결 문자열. 없으면 파일 저장(재시작 시 날아감).
-      #   RESEND_API_KEY  — re_… 무료 플랜에서 메일을 보내려면 이것뿐이다. 아래 SMTP 주석을 볼 것.
+      #   BREVO_API_KEY   — xkeysib-… 무료 플랜에서 메일을 보내려면 이것이다. 아래 SMTP 주석을 볼 것.
+      #                     발신자 주소(MAIL_FROM 의 주소)를 Brevo 에서 미리 인증해둬야 한다.
       #   MAIL_FROM       — 회항 경찰서 <주소>
       #   PUBLIC_URL      — https://mug0.onrender.com   (0 은 숫자. name 과 반드시 맞출 것)
       #

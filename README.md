@@ -35,14 +35,20 @@ npm test        # 저장소·API 왕복 검사
 | 변수 | 없으면 | 예시 |
 |---|---|---|
 | `DATABASE_URL` | `data/statements.json` 파일에 저장 (재시작하면 날아감) | `postgres://…` (Neon·Supabase 무료 등급) |
-| `RESEND_API_KEY` | `SMTP_URL` 로 넘어간다 | `re_…` ([resend.com](https://resend.com) 무료 월 3천 통) |
+| `BREVO_API_KEY` | 아래로 넘어간다 | `xkeysib-…` ([brevo.com](https://brevo.com) 무료 하루 300통) |
+| `RESEND_API_KEY` | 아래로 넘어간다 | `re_…` ([resend.com](https://resend.com) — **도메인 필요**, 아래 참고) |
 | `SMTP_URL` | 메일을 콘솔에만 찍음. 조서 번호 링크로는 확인 가능 | `smtps://아이디@gmail.com:앱비밀번호@smtp.gmail.com:465` |
 | `MAIL_FROM` | `회항 경찰서 <no-reply@localhost>` | `회항 경찰서 <아이디@gmail.com>` |
 | `PUBLIC_URL` | `http://localhost:8787` | `https://mug0.onrender.com` |
 
-메일 경로는 `RESEND_API_KEY` → `SMTP_URL` → 콘솔 순으로 있는 것을 쓴다.
+메일 경로는 `BREVO_API_KEY` → `RESEND_API_KEY` → `SMTP_URL` → 콘솔 순으로 있는 것을 쓴다.
 
-Gmail은 2단계 인증을 켠 뒤 **앱 비밀번호**를 발급받아 쓴다. 계정 비밀번호로는 안 된다.
+**도메인이 없으면 Brevo 를 쓴다.** Resend 는 도메인을 인증하기 전까지 `onboarding@resend.dev`
+로 **자기 계정 주소에만** 보낼 수 있어서, 모르는 사람에게 판결이 가야 하는 이 게임에는 못 쓴다.
+Brevo 는 발신자 주소 하나만 인증하면(gmail 주소도 된다) 아무에게나 보낼 수 있다.
+`MAIL_FROM` 의 주소가 그 인증된 주소와 같아야 한다.
+
+Gmail SMTP 는 2단계 인증을 켠 뒤 **앱 비밀번호**를 발급받아 쓴다. 계정 비밀번호로는 안 된다.
 
 `PUBLIC_URL` 은 판결 메일 안의 링크에 그대로 박힌다. 실제 도메인과 한 글자라도 다르면
 받은 사람은 죽은 링크를 받는다. 배포 후 반드시 눈으로 맞춰볼 것.
@@ -54,7 +60,7 @@ Gmail은 2단계 인증을 켠 뒤 **앱 비밀번호**를 발급받아 쓴다. 
 
 **무료 플랜에서는 SMTP 가 안 된다.** Render 는 2025-09-26 부터 무료 웹 서비스의
 아웃바운드 25·465·587 포트를 전부 막는다. `SMTP_URL` 을 넣어도 `Connection timeout`
-으로 죽는다 — 앱 비밀번호가 틀린 게 아니다. 포트를 안 타는 `RESEND_API_KEY` 를 쓰거나,
+으로 죽는다 — 앱 비밀번호가 틀린 게 아니다. 포트를 안 타는 `BREVO_API_KEY` 를 쓰거나,
 유료 인스턴스로 올려야 한다.
 
 무료 등급은 15분 놀면 잠들고, 첫 접속에 30초쯤 걸린다. 파일 시스템은 재배포 때마다 지워지므로
@@ -65,8 +71,8 @@ Gmail은 2단계 인증을 켠 뒤 **앱 비밀번호**를 발급받아 쓴다. 
 발송이 실패하면 주소를 지우지 않고 남겨둔다. 나중에 경로를 고친 뒤 밀린 것을 한 번에 보낼 수 있다.
 
 ```
-DATABASE_URL=… RESEND_API_KEY=… node tools/resend.js          # 누가 밀렸는지 본다
-DATABASE_URL=… RESEND_API_KEY=… node tools/resend.js --send   # 실제로 보낸다
+DATABASE_URL=… BREVO_API_KEY=… node tools/resend.js          # 누가 밀렸는지 본다
+DATABASE_URL=… BREVO_API_KEY=… node tools/resend.js --send   # 실제로 보낸다
 ```
 
 ## 개인정보
@@ -79,7 +85,7 @@ DATABASE_URL=… RESEND_API_KEY=… node tools/resend.js --send   # 실제로 �
 ```
 server.js     HTTP + 정적 파일. 하는 일은 셋뿐 — 진술 꺼내주기 / 판결 받기 / 진술 넣기
 store.js      Postgres 또는 JSON 파일. 같은 인터페이스
-mailer.js     판결·접수 통지. SMTP 없으면 콘솔
+mailer.js     판결 통지. Brevo → Resend → SMTP → 콘솔 순으로 있는 길을 쓴다
 seeds.js      대기열이 비었을 때 내놓는 조서 10개
 public/
   story.js    대본 전부. 글자만 들어 있다
@@ -88,6 +94,8 @@ public/
   game.js     진행부
 tools/
   storymap.js 대본에서 분기도(HTML)를 뽑는다 — node tools/storymap.js
+  queue.js    누가 판결을 기다리는지 들여다본다
+  resend.js   못 나간 판결 통지를 다시 보낸다
 ```
 
 ### 사람 사이로 넘어가는 것
