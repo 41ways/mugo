@@ -67,7 +67,7 @@ function verdictMail(row) {
   const body = guilty ? [
     P(`${name}. 재판은 열렸으나 오래 걸리지 않았다.`),
     P(`탐정 <b>${judge}</b>${josa(row.judge_name, '이/가')} 당신의 진술을 읽었고, 당신을 범인으로 지목했다. 회항에서 그 사람의 말은 판결과 같은 무게를 가진다. 배심원은 십일 분 만에 돌아왔다.`),
-    P(`형은 사흘 뒤 새벽, 부두 창고 앞 광장에서 집행됐다. 안개가 짙어 구경꾼은 많지 않았다.`),
+    P(`선고는 사형이었다. 회항에는 상소할 곳이 없다. 판결이 떨어지자 당신은 그 자리에서 끌려 나갔고, 형은 그날 부두 창고 앞 광장에서 곧바로 집행됐다. 안개가 짙어 구경꾼은 많지 않았다.`),
   ] : [
     P(`${name}. 재판은 열리지 않았다.`),
     P(`탐정 <b>${judge}</b>${josa(row.judge_name, '이/가')} 당신의 진술을 읽었고, 증거가 사람을 목매달 만큼은 아니라고 했다. 서류에 도장이 찍혔고, 당신은 그날 밤 뒷문으로 나왔다.`),
@@ -85,7 +85,7 @@ function verdictMail(row) {
     subject: `[회항 지방법원] ${rawName} — 판결: ${guilty ? '유죄' : '무죄'}`,
     html: shell(head + '<div style="height:18px"></div>' + body.join('') + quoted + tail),
     text: `${guilty ? '유죄' : '무죄'}\n\n${rawName}. 탐정 ${rawJudge}${josa(row.judge_name, '이/가')} 당신의 진술을 읽었다.\n` +
-          (guilty ? '형은 사흘 뒤 새벽에 집행됐다.\n' : '증거 불충분. 당신은 풀려났다.\n') +
+          (guilty ? '사형이 선고됐고, 그 자리에서 곧바로 집행됐다.\n' : '증거 불충분. 당신은 풀려났다.\n') +
           (reason ? `\n탐정의 소견: ${reason}\n` : '') + `\n${SITE}`,
   };
 }
