@@ -17,7 +17,7 @@ const mailer = require('./mailer.js');
 const PORT = process.env.PORT || 8787;
 const PUBLIC = path.join(__dirname, 'public');
 
-const LIMITS = { name: 24, answer: 140, reason: 220, clue: 80, clues: 12, email: 160 };
+const LIMITS = { name: 24, answer: 24, reason: 220, clue: 80, clues: 12, email: 160 };
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',

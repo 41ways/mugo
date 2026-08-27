@@ -581,7 +581,12 @@
       const j = Math.floor(Math.random() * (i + 1));
       [pool[i], pool[j]] = [pool[j], pool[i]];
     }
-    await say(pool.slice(0, 3).map((line) => ({ who: '이름을 대지 않는 남자', s: line })));
+    // 그가 한 마디 하면 당신이 한 마디 되받는다. 되받을수록 밀린다.
+    const reads = pool.slice(0, 3);
+    for (let i = 0; i < reads.length; i++) {
+      await say([{ who: '남자', s: reads[i] }].concat(R.back[i] || []));
+    }
+    await say(state.humiliation >= 6 ? R.mirror : R.plain);
     await say(R.close);
 
     await say(S.act2.lead);
@@ -791,19 +796,19 @@
     for (let i = 0; i < 3; i++) {
       const box = put(el('div', 'step qa'));
       box.appendChild(el('p', 'qq', `${i + 1}. ${esc(threeQs(S.act8, state.chased ? 'dock' : 'house')[i])}`));
-      const input = box.appendChild(el('textarea'));
-      input.rows = 2;
-      input.maxLength = 140;
+      const input = box.appendChild(el('input'));
+      input.type = 'text';
+      input.maxLength = ANSWER_MAX;
       input.placeholder = S.act8.placeholder[i];
-      const cnt = box.appendChild(el('div', 'count', '0 / 140'));
-      input.oninput = () => { cnt.textContent = `${input.value.length} / 140`; };
+      const cnt = box.appendChild(el('div', 'count', `0 / ${ANSWER_MAX}`));
+      input.oninput = () => { cnt.textContent = `${input.value.length} / ${ANSWER_MAX}`; };
       const row = box.appendChild(el('div', 'row'));
       const ok = row.appendChild(el('button', 'btn', i < 2 ? '대답한다' : '대답을 마친다'));
       input.focus();
       toBottom();
       await new Promise((r) => {
         ok.onclick = r;
-        input.onkeydown = (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) r(); };
+        input.onkeydown = (e) => { if (e.key === 'Enter') r(); };
       });
       row.remove();
       input.disabled = true;
@@ -877,11 +882,13 @@
     }
 
     await say(state.caseData && !state.caseData.seed ? S.act9.revealReal : S.act9.revealSeed);
-    await say(S.act9.tail, { silent: true });
+
+    // 유치장. 사흘 전 당신이 밖에서 들여다보던 그 문이다.
+    await say(S.act9.cellDoor);
+    await say(S.act9.lastVisit);
+    plateCard('img/cell.jpg');
 
     const row2 = put(el('div', 'step')).appendChild(el('div', 'row'));
-    const again = row2.appendChild(el('button', 'btn ghost', '다시 기차를 탄다'));
-    again.onclick = () => { location.href = location.pathname; };
     row2.appendChild(footerNode('주소는 판결 한 통을 보내고 나면 지워진다.'));
     toBottom();
   }

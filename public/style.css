@@ -89,11 +89,32 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
 .say.q{color:var(--fog)}
 .say.whisper{color:var(--faint); font-size:15px; font-style:italic}
 .say.beat{color:var(--lamp); font-size:15px; letter-spacing:.02em}
-.said{margin:0 0 1.05em; padding-left:16px; border-left:2px solid var(--line); color:var(--paper)}
-.said .who{
-  display:block; font-family:var(--mono); font-size:10.5px; letter-spacing:.24em;
-  color:var(--faint); text-transform:uppercase; margin-bottom:3px;
+/* ── 대화 — 누가 말하는지 한눈에 ──────────────────────────── */
+.said{
+  margin:0 0 11px; padding:11px 16px; border-radius:3px; max-width:86%;
+  background:rgba(255,255,255,.024); border-left:2px solid var(--line);
+  color:var(--paper); font-size:16px; line-height:1.8;
 }
+.said .who{
+  display:block; font-family:var(--mono); font-size:11px; letter-spacing:.16em;
+  color:var(--dim); margin-bottom:5px;
+}
+/* 나 — 반대편에 붙고, 등불색 */
+.said.s-me{
+  margin-left:auto; margin-right:0;
+  border-left:0; border-right:2px solid var(--lamp);
+  background:rgba(216,162,74,.065);
+}
+.said.s-me .who{color:var(--lamp); text-align:right}
+/* 소장 — 차가운 쪽 */
+.said.s-kel{border-left-color:var(--cold); background:rgba(93,122,128,.055)}
+.said.s-kel .who{color:#8fb0b6}
+/* 이름을 대지 않는 남자 — 색이 없다 */
+.said.s-man{border-left-color:#7d7566}
+.said.s-man .who{color:#a89c85}
+.said.s-etc{border-left-color:#6e5f52}
+.said.s-etc .who{color:#a2907c}
+@media (max-width:520px){ .said{max-width:94%} }
 .hr{height:1px; background:var(--line); margin:30px 0; border:0}
 .chapter{
   font-family:var(--mono); font-size:10.5px; letter-spacing:.34em; color:var(--faint);
