@@ -53,8 +53,11 @@ const P = (t) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.85;">${
 
 function verdictMail(row) {
   const guilty = row.verdict === 'guilty';
-  const name = esc(row.name || '이름 없는 자');
-  const judge = esc(row.judge_name || '이름을 밝히지 않은 탐정');
+  // 장부에 적은 이름. 제목과 본문 텍스트는 날것으로, HTML 본문만 이스케이프한다.
+  const rawName = String(row.name || '이름 없는 자');
+  const rawJudge = String(row.judge_name || '이름을 밝히지 않은 탐정');
+  const name = esc(rawName);
+  const judge = esc(rawJudge);
   const reason = String(row.reason || '').trim();
 
   const head = guilty
@@ -78,9 +81,10 @@ function verdictMail(row) {
   const tail = P(`<span style="font-size:13px;color:#6d6355;">당신을 판결한 사람도 당신과 똑같은 밤을 보냈고, 지금 어딘가에서 자기 판결을 기다리고 있다.</span>`);
 
   return {
-    subject: guilty ? '[회항 지방법원] 판결 — 유죄' : '[회항 지방법원] 판결 — 무죄',
+    // 제목에도 장부에 적은 이름을 넣는다. 받은 사람이 자기 앞으로 온 것인 줄 알아야 한다.
+    subject: `[회항 지방법원] ${rawName} — 판결: ${guilty ? '유죄' : '무죄'}`,
     html: shell(head + '<div style="height:18px"></div>' + body.join('') + quoted + tail),
-    text: `${guilty ? '유죄' : '무죄'}\n\n${name}. 탐정 ${judge}${josa(row.judge_name, '이/가')} 당신의 진술을 읽었다.\n` +
+    text: `${guilty ? '유죄' : '무죄'}\n\n${rawName}. 탐정 ${rawJudge}${josa(row.judge_name, '이/가')} 당신의 진술을 읽었다.\n` +
           (guilty ? '형은 사흘 뒤 새벽에 집행됐다.\n' : '증거 불충분. 당신은 풀려났다.\n') +
           (reason ? `\n탐정의 소견: ${reason}\n` : '') + `\n${SITE}`,
   };
