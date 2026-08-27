@@ -43,7 +43,7 @@
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   // 대사 안의 {name} 을 장부에 적은 이름으로 바꾼다. 안 적었으면 그냥 「선생」.
-  const fill = (t) => String(t == null ? '' : t).replace(/\{name\}/g, () => state.name || '선생');
+  const fill = (t) => String(t == null ? '' : t).replace(/\{name\}/g, () => state.name || '탐정');
 
   // 누가 말하는지 한눈에 보이게. 「나」는 반대쪽에 붙고 색이 다르다.
   const SPEAKER = { '나': 's-me', '켈러 소장': 's-kel', '남자': 's-man' };
