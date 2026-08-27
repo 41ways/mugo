@@ -151,7 +151,7 @@ async function apiStatement(req, res) {
     judge_name: null,
   };
   await store.insert(row);
-  if (row.email) mailer.sendReceipt(row); // 접수증은 기다리지 않는다
+  // 접수증은 보내지 않는다. 메일은 판결 한 통뿐이다.
 
   const { pending } = await store.counts();
   json(res, 200, { token: row.token, queued: pending, mail: !!row.email && mailer.enabled() });

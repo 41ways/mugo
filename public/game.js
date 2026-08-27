@@ -88,11 +88,18 @@
   function wipe() { flow.innerHTML = ''; opts.innerHTML = ''; tapslot.innerHTML = ''; }
 
   // 한 낱말씩 떠오르게. 줄 전체가 통째로 튀어나오면 딱딱하다.
+  // 긴 줄일수록 낱말 간격을 좁힌다 — 안 그러면 다 뜨기도 전에 다음 줄이 내려온다.
+  const stepFor = (n) => (n > 16 ? 20 : n > 8 ? 24 : 30);
+  const REVEAL = 620;   // .w 애니메이션 길이와 같아야 한다
+  const revealMs = (n) => (n ? (n - 1) * stepFor(n) + REVEAL : 0);
+
   function words(text, from = 0) {
+    const parts = String(fill(text)).split(/(\s+)/);
+    const step = stepFor(parts.filter((w) => w && !/^\s+$/.test(w)).length);
     let i = from;
-    return String(fill(text)).split(/(\s+)/).map((w) => {
+    return parts.map((w) => {
       if (!w || /^\s+$/.test(w)) return w;
-      const d = i * 34; i += 1;
+      const d = i * step; i += 1;
       return `<span class="w" style="animation-delay:${d}ms">${esc(w)}</span>`;
     }).join('');
   }
@@ -168,7 +175,7 @@
     if (l.w) return el('p', 'say whisper', words(l.w));
     return el('p', 'say', words(l.s));
   };
-  const pace = (l) => l.hr ? 180 : Math.min(1250, 300 + wordCount(l.s || l.c || l.b || l.w || '') * 32);
+  const pace = (l) => l.hr ? 180 : Math.min(1750, revealMs(wordCount(l.s || l.c || l.b || l.w || '')) + 130);
 
   // 글은 위에서 아래로 흐르고, 아래에 닿으면 그때 「계속」이 뜬다.
   // 한 장에 한 줄만 덩그러니 남기지 않는다. 넘긴 자리에 최소 두세 줄은 들어가게.
@@ -179,30 +186,31 @@
     if (lines.some((l) => l.c)) {
       if (o.silent) wipe(); else await turn(true);
     }
-    const clearSoft = () => {
-      const keep = [...flow.querySelectorAll('.sticky')];
-      flow.innerHTML = '';
-      keep.forEach((k) => flow.appendChild(k));
-    };
-
     for (let i = 0; i < lines.length; i++) {
-      const l = lines[i];
+      let l = lines[i];
       const n = lineNode(l);
       flow.appendChild(n);
 
       if (overflows()) {
         n.remove();
-        if (o.silent) clearSoft(); else await turn(false);
+        // 조용한 자리(silent)라도 넘길 때는 「계속」을 세운다. 소리 없이 지우면
+        // 짧은 화면에서 앞줄이 그냥 사라지고 마지막 한 줄만 남는다.
+        await turn(false);
         flow.appendChild(n);
 
-        // 새 장을 열었으면, 뒤따르는 줄들을 미리 붙여 한 줄짜리 화면을 막는다.
+        // 새 장을 열었으면 뒤따르는 줄까지 이 장에 넣어 한 줄짜리 화면을 막는다.
+        // 다만 들어갈 자리만 미리 재보고, 글자는 한 줄씩 차례로 내려 쌓는다.
         let filled = 1;
         while (filled < MIN_LINES && i + 1 < lines.length) {
-          const peek = lineNode(lines[i + 1]);
-          flow.appendChild(peek);
-          if (overflows()) { peek.remove(); break; }
+          const probe = lineNode(lines[i + 1]);
+          flow.appendChild(probe);
+          const fits = !overflows();
+          probe.remove();
+          if (!fits) break;
+          await beat(pace(l));
           i += 1; filled += 1;
-          await beat(pace(lines[i]));
+          l = lines[i];
+          flow.appendChild(lineNode(l));
         }
       }
       await beat(pace(l));
@@ -412,23 +420,60 @@
   /* ── 몰입 화면 — 사진이 화면을 다 덮고, 그 위에서 고른다 ───────── */
 
   // 사진 위에서 고르는 제한시간 선택. 고르면 같은 화면에서 결과가 이어진다.
+  // 자리(at)가 적힌 선택지는 사진 속 그 물건 위에 놓인다.
+  // 화면이 좁으면 글자끼리 겹치므로 예전처럼 아래 세로 목록으로 돌아간다.
+  const PIN_MIN = 620;
+
+  // 사진이 화면보다 넓게 잘리면 가장자리 선택지가 밖으로 밀린다.
+  // 점은 물건 위에 그대로 두고, 글자만 화면 안으로 당긴다.
+  // 사진이 계속 확대되므로 매 프레임 다시 잰다. 판이 확대된 만큼 나눠서 밀어야
+  // 실제로 민 만큼 움직인다.
+  function fitPins(pins) {
+    const pad = 14;
+    const k = pins.offsetWidth ? pins.getBoundingClientRect().width / pins.offsetWidth : 1;
+    [...pins.children].forEach((b) => {
+      const t = b.querySelector('.dtext');
+      if (!t) return;
+      const r = t.getBoundingClientRect();
+      const cur = parseFloat(t.dataset.dx || '0');
+      let dx = cur;
+      if (r.left < pad) dx = cur + (pad - r.left) / k;
+      else if (r.right > innerWidth - pad) dx = cur + ((innerWidth - pad) - r.right) / k;
+      if (Math.abs(dx - cur) < 0.5) return;
+      t.dataset.dx = String(dx);
+      t.style.transform = `translateX(${dx.toFixed(1)}px)`;
+    });
+  }
+
   function sceneTimed(cueHtml, choices, seconds) {
     return new Promise((resolve) => {
+      const pins = scene.querySelector('.scene-frame.pins');
+      const spatial = !!pins && innerWidth >= PIN_MIN
+        && choices.every((o) => o && typeof o === 'object' && o.at);
       const box = sceneBody();
-      const text = box.appendChild(el('div', 'scene-text'));
+      const text = box.appendChild(el('div', 'scene-text' + (spatial ? ' low' : '')));
       text.appendChild(el('p', 'say', cueHtml));
-      const list = text.appendChild(el('div', 'scene-list'));
+      const list = spatial ? pins : text.appendChild(el('div', 'scene-list'));
+      if (spatial) pins.innerHTML = '';
 
       const bar = box.appendChild(el('div', 'scene-foot'));
       const timerEl = bar.appendChild(el('div', 'timer', '<i></i>'));
       const fill = timerEl.firstElementChild;
 
-      const btns = choices.map((label, i) => {
-        const n = list.appendChild(el('button', 'dopt'));
+      const btns = choices.map((o, i) => {
+        const label = typeof o === 'string' ? o : o.label;
+        const n = list.appendChild(el('button', 'dopt' + (spatial ? ' pin' : '')));
         n.innerHTML = `<span class="dtext">${esc(label)}</span>`;
+        if (spatial) { n.style.left = o.at[0] + '%'; n.style.top = o.at[1] + '%'; }
         n.onclick = () => end(i);
         return n;
       });
+
+      let keepIn = 0;
+      if (spatial) {
+        const hold = () => { fitPins(pins); keepIn = requestAnimationFrame(hold); };
+        hold();   // 확대되는 동안에도 글자는 화면 안에 남는다
+      }
 
       let left = seconds * 1000, since = 0, timer = null, done = false;
       const run = () => {
@@ -451,9 +496,13 @@
         done = true;
         clearTimeout(timer);
         document.removeEventListener('visibilitychange', onVis);
+        cancelAnimationFrame(keepIn);
         timerEl.remove();
         btns.forEach((n, i) => { n.disabled = true; if (i !== idx) n.classList.add('faded'); });
-        setTimeout(() => resolve(idx), 450);
+        setTimeout(() => {
+          if (spatial) pins.innerHTML = '';
+          resolve(idx);
+        }, 450);
       };
 
       document.addEventListener('visibilitychange', onVis);
@@ -464,7 +513,18 @@
 
   function sceneOpen(img) {
     scene.className = 'on';
-    scene.innerHTML = `<img src="${img}" alt="" decoding="async"><div class="scene-in"></div>`;
+    scene.innerHTML =
+      `<div class="scene-frame"><img src="${img}" alt="" decoding="async"></div>` +
+      `<div class="scene-frame pins"></div>` +
+      `<div class="scene-in"></div>`;
+    // 사진의 실제 비율을 알아야 선택지를 사진 속 자리에 맞출 수 있다.
+    const im = scene.querySelector('img');
+    const setAr = () => {
+      if (!im.naturalWidth) return;
+      const ar = (im.naturalWidth / im.naturalHeight).toFixed(4);
+      [...scene.querySelectorAll('.scene-frame')].forEach((f) => f.style.setProperty('--ar', ar));
+    };
+    if (im.complete) setAr(); else im.onload = setAr;
     return scene.querySelector('.scene-in');
   }
   function sceneBody() {
@@ -485,7 +545,8 @@
   }
 
   // 사진 위에서 글자가 뜬다. 화면은 그대로 두고 내용만 바뀐다.
-  function sceneSay(lines) {
+  // o.auto 를 주면 「계속」을 세우지 않고 그만큼 있다가 저절로 넘어간다.
+  function sceneSay(lines, o = {}) {
     return new Promise((resolve) => {
       const box = sceneBody();
       const text = box.appendChild(el('div', 'scene-text'));
@@ -496,7 +557,7 @@
         if (i >= lines.length) return arrive();
         const l = lines[i++];
         text.appendChild(sceneNode(l));
-        timer = setTimeout(step, l.hr ? 180 : Math.min(1250, 300 + wordCount(l.s || l.b || l.w || '') * 32));
+        timer = setTimeout(step, l.hr ? 180 : Math.min(1750, revealMs(wordCount(l.s || l.b || l.w || '')) + 130));
       };
       const flush = () => {
         clearTimeout(timer);
@@ -504,7 +565,12 @@
         arrive();
       };
       let tapEl = null;
-      const arrive = () => { if (ended) return; ended = true; tapEl = bar.appendChild(el('div', 'tap', '계속')); };
+      const arrive = () => {
+        if (ended) return;
+        ended = true;
+        if (o.auto) { timer = setTimeout(finish, o.auto); return; }
+        tapEl = bar.appendChild(el('div', 'tap', '계속'));
+      };
       const finish = () => {
         if (closed) return;
         closed = true;
@@ -757,7 +823,7 @@
     // 세 마디. 대답은 앞사람이 직접 쓴 것이다.
     const qs = threeQs(S.act2, c.caught);
     for (let i = 0; i < 3; i++) {
-      if (i > 0) await turn(false);
+      await turn(true);   // 묻고 답하는 한 쌍이 한 화면을 통째로 쓴다
       await say([{ who: '나', s: qs[i] }], { silent: true });
       await wait(900);
       const a = (c.answers[i] || '').trim();
@@ -862,11 +928,12 @@
 
   /* 6장 — 서른 걸음 뒤. 갈림길마다 사진이 화면을 덮는다. */
   async function act5() {
-    await say(S.act5.open, { silent: true });
+    await say(S.act5.open);
+    await turn(false);          // 첫 사진이 글자를 밀어내며 튀어나오지 않도록
     for (const j of S.act5.junctions) {
       sceneOpen(j.img);
       slow(true);
-      const pick = await sceneTimed(esc(j.cue), j.opts, 9);
+      const pick = await sceneTimed(words(j.cue), j.opts, 9);
       slow(false);
       if (pick === j.right) await sceneSay([{ s: j.win }]);
       else await sceneSay([{ s: pick < 0 ? S.act5.slow : j.lose }]);
@@ -877,19 +944,26 @@
   /* 7장 — 어둠. 여기서는 화면을 통째로 쓴다. */
   async function act6() {
     await say(S.act6.open);
+    await turn(false);          // 부두는 눌러서 들어간다
 
     sceneOpen(S.act6.img);
     await sceneSay(S.act6.seen);
     scene.classList.add('dim');
     await wait(1500);
 
-    for (const b of S.act6.beats) {
+    for (let i = 0; i < S.act6.beats.length; i++) {
+      const b = S.act6.beats[i];
+      const last = i === S.act6.beats.length - 1;
       const pick = await sceneBeat(b, 7);
-      if (pick === b.right) await sceneSay([{ b: b.win }]);
-      else { state.hits.push(b.hurt); await sceneSay([{ s: b.lose }]); }
+      const line = pick === b.right ? { b: b.win } : { s: b.lose };
+      if (pick !== b.right) state.hits.push(b.hurt);
+      // 마지막 합은 흉기가 손에 들어온 것까지 한 화면에 놓고, 누르지 않아도 넘어간다.
+      if (last) await sceneSay([line].concat(S.act6.won), { auto: 1600 });
+      else await sceneSay([line]);
     }
 
     flash();
+    await wait(620);
     await sceneSay(S.act6.end);
     sceneClose();
   }
@@ -945,7 +1019,7 @@
     await say(S.act8.open);
     const answers = [];
     for (let i = 0; i < 3; i++) {
-      if (i > 0) await turn(false);
+      await turn(true);
       await say([{ who: '켈러 소장', s: threeQs(S.act8, state.chased ? 'dock' : 'house')[i] }], { silent: true });
       const box = setFoot(el('div'));
       box.style.cssText = 'display:flex;flex-direction:column;gap:8px';

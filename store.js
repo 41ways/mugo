@@ -92,6 +92,11 @@ class FileStore {
       pending: this.rows.filter((r) => !r.judged_at).length,
     };
   }
+
+  // 대기열을 들여다볼 때만 쓴다(tools/queue.js). 게임 진행에는 안 쓰인다.
+  async all() {
+    return this.rows.slice();
+  }
 }
 
 /* ─────────────────────────── Postgres ─────────────────────────── */
@@ -190,6 +195,19 @@ class PgStore {
               count(*) FILTER (WHERE judged_at IS NULL)::int AS pending
          FROM statements`);
     return rows[0];
+  }
+
+  // 대기열을 들여다볼 때만 쓴다(tools/queue.js). 주소는 있는지 없는지만 가져온다.
+  async all() {
+    const { rows } = await this.pool.query(
+      `SELECT id, name, caught, created_at, claimed_at, judged_at, verdict, judge_name,
+              (email IS NOT NULL) AS email
+         FROM statements`);
+    return rows;
+  }
+
+  async close() {
+    await this.pool.end();
   }
 }
 

@@ -86,18 +86,6 @@ function verdictMail(row) {
   };
 }
 
-function receiptMail(row) {
-  return {
-    subject: '[회항 경찰서] 진술 접수',
-    html: shell(
-      `<div style="font-size:22px;font-weight:700;letter-spacing:-.02em;">진술이 접수됐다</div><div style="height:16px"></div>` +
-      P(`${esc(row.name || '이름 없는 자')}. 당신의 진술서는 봉해졌다.`) +
-      P(`회항에는 판사가 없다. 다음으로 이 마을에 들어오는 탐정이 당신의 진술을 읽고, 그 사람의 한마디로 끝난다. 언제 올지는 아무도 모른다.`) +
-      P(`판결이 나오면 이 주소로 한 통이 더 간다. 기다리는 동안 <a href="${SITE}/?t=${esc(row.token)}" style="color:#8a5a20;">이 링크</a>로 직접 확인할 수도 있다.`)),
-    text: `진술이 접수됐다.\n다음 탐정이 당신의 진술을 읽고 판결한다.\n확인: ${SITE}/?t=${row.token}\n`,
-  };
-}
-
 async function send(to, mail) {
   if (!to) return false;
   if (!transport) {
@@ -116,6 +104,5 @@ async function send(to, mail) {
 
 module.exports = {
   sendVerdict: (row) => send(row.email, verdictMail(row)),
-  sendReceipt: (row) => send(row.email, receiptMail(row)),
   enabled: () => !!transport,
 };

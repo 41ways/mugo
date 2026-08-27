@@ -23,6 +23,7 @@ html,body{height:100%}
 body{
   margin:0; background:var(--ink); color:var(--paper);
   font-family:var(--serif); line-height:1.9; letter-spacing:-.01em;
+  word-break:keep-all; overflow-wrap:break-word;
   overflow:hidden;
   -webkit-font-smoothing:antialiased;
 }
@@ -485,20 +486,43 @@ body.slow .plate.photo img{filter:contrast(1.04) brightness(.96)}
 /* ── 몰입 화면 — 사진이 화면을 다 덮고, 그 위에서 고른다 ────── */
 #scene{position:fixed; inset:0; z-index:45; display:none; background:#000; overflow:hidden}
 #scene.on{display:block}
-#scene > img{
-  position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+/* 사진과 선택지가 같은 판 위에 놓인다. 판이 확대되면 선택지도 같이 밀린다 —
+   그래야 「오른쪽 방문」이 방문 위에 계속 붙어 있다. */
+.scene-frame{
+  position:absolute; top:50%; left:50%; z-index:1;
+  width:max(100vw, calc(100vh * var(--ar, 1.78)));
+  height:max(100vh, calc(100vw / var(--ar, 1.78)));
   transform-origin:50% 46%;
   animation:push 26s cubic-bezier(.15,.5,.35,1) both;
+}
+.scene-frame > img{
+  width:100%; height:100%; display:block; object-fit:fill;
   transition:filter 1.8s ease-in;
 }
-@keyframes push{from{transform:scale(1.02)} to{transform:scale(1.26)}}
-#scene.dim > img{filter:brightness(.22) contrast(1.3) saturate(.45)}
+@keyframes push{
+  from{transform:translate(-50%,-50%) scale(1.02)}
+  to{transform:translate(-50%,-50%) scale(1.26)}
+}
+#scene.dim img{filter:brightness(.22) contrast(1.3) saturate(.45)}
 #scene::after{
-  content:''; position:absolute; inset:0; pointer-events:none;
+  content:''; position:absolute; inset:0; z-index:2; pointer-events:none;
   background:radial-gradient(115% 95% at 50% 44%, transparent 22%, rgba(0,0,0,.82) 100%);
 }
+.scene-frame.pins{z-index:3; pointer-events:none}
+.scene-frame.pins > button{pointer-events:auto}
+button.dopt.pin{
+  position:absolute; transform:translate(-50%,-50%); padding:0; white-space:nowrap;
+  text-align:center; font-size:clamp(14px,1.5vw,18px); text-shadow:0 2px 18px #000, 0 0 40px #000;
+}
+button.dopt.pin::before{
+  content:''; display:block; width:7px; height:7px; margin:0 auto 9px; border-radius:50%;
+  background:var(--lamp); box-shadow:0 0 12px 3px rgba(216,162,74,.45);
+}
+/* 점은 물건 위에 그대로 두고, 화면 밖으로 밀린 글자만 안쪽으로 당긴다 */
+button.dopt.pin .dtext{display:inline-block}
+button.dopt.pin .dtext{border-bottom-color:rgba(216,162,74,.5)}
 .scene-in{
-  position:absolute; inset:0; z-index:2;
+  position:absolute; inset:0; z-index:4;
   display:flex; flex-direction:column;
   padding:clamp(18px,4vh,44px) clamp(16px,5vw,40px) clamp(16px,3vh,30px);
   max-width:900px; margin:0 auto;
@@ -507,6 +531,8 @@ body.slow .plate.photo img{filter:contrast(1.04) brightness(.96)}
   flex:1 1 auto; min-height:0; display:flex; flex-direction:column; justify-content:center;
   text-align:center; gap:2px;
 }
+.scene-text.low{justify-content:flex-end; padding-bottom:4px}
+.scene-text.low .say{margin-bottom:.3em; text-shadow:0 2px 12px #000, 0 0 44px #000, 0 0 12px #000}
 .scene-text .say{
   margin:0 0 .7em; font-size:clamp(17px,4.3vw,20px);
   text-shadow:0 2px 22px rgba(0,0,0,.95), 0 0 60px rgba(0,0,0,.8);
