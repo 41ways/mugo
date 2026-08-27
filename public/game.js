@@ -1023,8 +1023,8 @@
     await plateCard(S.act9.cellIn);
     await wait(1600);
     await say(S.act9.cellShut);
+    // 마지막 장면에는 사진을 두지 않는다. 들여다보는 쪽은 이제 이쪽이 아니다.
     await say(S.act9.lastVisit);
-    plateCard('img/cell.jpg');
 
     setFoot(footerNode('주소는 판결 한 통을 보내고 나면 지워진다.'));
   }
