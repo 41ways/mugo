@@ -42,6 +42,9 @@
   const esc = (s) => String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+  // 대사 안의 {name} 을 장부에 적은 이름으로 바꾼다. 안 적었으면 그냥 「선생」.
+  const fill = (t) => String(t == null ? '' : t).replace(/\{name\}/g, () => state.name || '선생');
+
   // 누가 말하는지 한눈에 보이게. 「나」는 반대쪽에 붙고 색이 다르다.
   const SPEAKER = { '나': 's-me', '켈러 소장': 's-kel', '남자': 's-man' };
 
@@ -80,7 +83,7 @@
   // 한 낱말씩 떠오르게. 줄 전체가 통째로 튀어나오면 딱딱하다.
   function words(text, from = 0) {
     let i = from;
-    return String(text).split(/(\s+)/).map((w) => {
+    return String(fill(text)).split(/(\s+)/).map((w) => {
       if (!w || /^\s+$/.test(w)) return w;
       const d = i * 34; i += 1;
       return `<span class="w" style="animation-delay:${d}ms">${esc(w)}</span>`;
@@ -581,7 +584,7 @@
     });
     state.name = input.value.trim().slice(0, 24);
     opts.innerHTML = '';
-    addLine(el('p', 'say whisper', `장부에 「${esc(state.name)}」이라고 적힌다.`));
+    addLine(el('p', 'say whisper', `장부에 「${esc(state.name)}」라고 적힌다.`));
   }
 
   /* 0장 — 편지, 그리고 오는 길 */
@@ -877,30 +880,29 @@
 
     const box = setFoot(el('div'));
     box.style.cssText = 'display:flex;flex-direction:column;gap:8px';
-    box.appendChild(el('label', 'lab', '판결을 받을 주소'));
+    box.appendChild(el('label', 'lab', '거주지 — 통지를 받을 곳'));
     const input = box.appendChild(el('input'));
     input.type = 'email';
     input.placeholder = 'name@example.com';
     input.autocomplete = 'email';
+    input.required = true;
     addLine(el('p', 'say whisper', esc(S.act9.mailLead)));
     const err = box.appendChild(el('p', 'err'));
     err.style.display = 'none';
     const row = box.appendChild(el('div', 'row'));
-    const ok = row.appendChild(el('button', 'btn', '주소를 댄다'));
-    const skip = row.appendChild(el('button', 'btn ghost', '대지 않는다'));
+    const ok = row.appendChild(el('button', 'btn', '댄다'));
     input.focus();
 
     const email = await new Promise((r) => {
       ok.onclick = () => {
         const v = input.value.trim();
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) {
-          err.textContent = '그건 주소가 아니오.';
+          err.textContent = '그건 주소가 아니오. 편지가 닿을 곳을 대시오.';
           err.style.display = '';
           return;
         }
         r(v);
       };
-      skip.onclick = () => r('');
       input.onkeydown = (e) => { if (e.key === 'Enter') ok.onclick(); };
     });
     opts.innerHTML = '';
