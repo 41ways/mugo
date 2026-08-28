@@ -96,8 +96,10 @@ function verdictMail(row, o = {}) {
   const judge = esc(rawJudge);
   const reason = String(mine.reason || '').trim();
 
+  const ORD = ['', '첫', '두', '세', '네', '다섯', '여섯'];
+  const nthWord = (ORD[nth] || String(nth)) + ' 번째 판결';
   const eyebrow = second
-    ? `<div style="font-size:11px;letter-spacing:.28em;color:#8a7c66;margin:0 0 8px;">두 번째 판결</div>`
+    ? `<div style="font-size:11px;letter-spacing:.28em;color:#8a7c66;margin:0 0 8px;">${nthWord}</div>`
     : '';
   const head = eyebrow + (guilty
     ? `<div style="font-size:27px;font-weight:700;letter-spacing:-.02em;color:#7d1c14;">유죄</div>`
@@ -132,9 +134,9 @@ function verdictMail(row, o = {}) {
 
   return {
     // 제목에도 장부에 적은 이름을 넣는다. 받은 사람이 자기 앞으로 온 것인 줄 알아야 한다.
-    subject: `[회항 지방법원] ${rawName} — ${second ? '두 번째 판결' : '판결'}: ${guilty ? '유죄' : '무죄'}`,
+    subject: `[회항 지방법원] ${rawName} — ${second ? nthWord : '판결'}: ${guilty ? '유죄' : '무죄'}`,
     html: shell(head + '<div style="height:18px"></div>' + body.join('') + quoted + clash + tail),
-    text: `${second ? '두 번째 판결 — ' : ''}${guilty ? '유죄' : '무죄'}\n\n${rawName}. 탐정 ${rawJudge}${josa(rawJudge, '이/가')} 당신의 진술을 읽었다.\n` +
+    text: `${second ? nthWord + ' — ' : ''}${guilty ? '유죄' : '무죄'}\n\n${rawName}. 탐정 ${rawJudge}${josa(rawJudge, '이/가')} 당신의 진술을 읽었다.\n` +
           (guilty ? '사형이 선고됐고, 그 자리에서 곧바로 집행됐다.\n' : '증거 불충분. 당신은 풀려났다.\n') +
           (reason ? `\n탐정의 소견: ${reason}\n` : '') + `\n${SITE}`,
   };

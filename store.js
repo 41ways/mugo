@@ -11,7 +11,9 @@ const path = require('path');
 const crypto = require('crypto');
 
 const CLAIM_TTL_MS = 30 * 60 * 1000; // 배심원이 물고 간 진술을 다시 풀어주기까지
-const MAX_VERDICTS = 2;              // 한 조서를 몇 사람까지 읽는가
+// 한 조서를 몇 사람이 읽는가에는 상한이 없다. 지어낸 조서를 주느니 실제 사람이
+// 쓴 것을 다시 돌린다. 다만 통지는 두 통까지만 나간다(주소를 그때 지운다).
+const MAX_MAILS = 2;
 
 // 판결 하나. 누가 내렸는지(player)까지 남겨야 같은 사람이 같은 조서를 두 번 안 받는다.
 const verdictEntry = (patch) => ({
@@ -42,15 +44,18 @@ const taken = (row, now, me) =>
 
 // 누구에게 무엇을 줄까.
 //   1순위 — 아무도 아직 안 건드린 조서. 한 사람에 한 조서가 기본이다.
-//   2순위 — 그런 게 없을 때만, 이미 한 자리가 찬 조서를 두 사람째로 준다.
-//           동시에 들어와 앞사람이 붙들고 있거나, 남은 게 읽힌 것뿐인 경우다.
-//   그마저 없으면 null — 부르는 쪽이 지어낸 조서로 간다.
+//   2순위 — 그런 게 없으면, 덜 읽힌 것부터 다시 돌린다. 상한은 없다.
+//           지어낸 조서를 주면 그 판은 아무와도 안 엮이므로, 그것보다는 낫다.
+//   줄 사람이 정말 하나도 없을 때만 null — 그때야 지어낸 조서로 간다.
+//
+// 두 순위 모두 플레이가 먼저 끝난 순서다. 조서는 판이 끝날 때 만들어지므로
+// created_at 이 곧 끝난 순서고, 덜 읽힌 것부터 세우면 앞에서부터 한 바퀴씩 돈다.
 function choose(rows, now, me) {
   const line = rows
     .filter((r) => !parked(r, now) && r.player !== me && !judgedBy(r, me))
-    .sort((a, b) => a.created_at - b.created_at);   // 오래 기다린 사람부터
+    .sort((a, b) => a.created_at - b.created_at);
   return line.find((r) => taken(r, now, me) === 0)
-      || line.find((r) => taken(r, now, me) < MAX_VERDICTS)
+      || line.slice().sort((a, b) => taken(a, now, me) - taken(b, now, me))[0]
       || null;
 }
 
@@ -117,7 +122,6 @@ class FileStore {
     const row = this.rows.find((r) => r.id === id);
     if (!row) return null;
     const seen = row.judged_count != null ? row.judged_count : (row.judged_at ? 1 : 0);
-    if (seen >= MAX_VERDICTS) return null;
     const entry = verdictEntry(patch);
     row.verdicts = (row.verdicts || []).concat([entry]);
     row.judged_count = seen + 1;
@@ -137,7 +141,7 @@ class FileStore {
     return {
       total: this.rows.length,
       pending: this.rows.filter((r) =>
-        !parked(r, now) && (r.judged_count != null ? r.judged_count : (r.judged_at ? 1 : 0)) < MAX_VERDICTS).length,
+        !parked(r, now) && !(r.judged_count != null ? r.judged_count : (r.judged_at ? 1 : 0))).length,
     };
   }
 
@@ -232,14 +236,13 @@ class PgStore {
       await client.query('BEGIN');
       const { rows } = await client.query(
         `SELECT * FROM statements
-          WHERE judged_count < $1
-            AND player <> $2
-            AND NOT (verdicts @> $3::jsonb)
-            AND (claimed_at IS NULL OR claimed_at < $4)
+          WHERE player <> $1
+            AND NOT (verdicts @> $2::jsonb)
+            AND (claimed_at IS NULL OR claimed_at < $3)
           ORDER BY created_at
           LIMIT 50
           FOR UPDATE`,
-        [MAX_VERDICTS, me, JSON.stringify([{ by: me }]), now + PARK_MS]);
+        [me, JSON.stringify([{ by: me }]), now + PARK_MS]);
 
       const r = choose(rows, now, me);
       if (r) {
@@ -278,15 +281,15 @@ class PgStore {
           SET judged_count = judged_count + 1,
               verdicts     = verdicts || $2::jsonb,
               holds        = COALESCE((SELECT jsonb_agg(h) FROM jsonb_array_elements(holds) h
-                                        WHERE h->>'by' IS DISTINCT FROM $8), '[]'::jsonb),
+                                        WHERE h->>'by' IS DISTINCT FROM $7), '[]'::jsonb),
               verdict      = COALESCE(verdict, $3),
               reason       = COALESCE(reason, $4),
               judge_name   = COALESCE(judge_name, $5),
               judged_at    = COALESCE(judged_at, $6)
-        WHERE id = $1 AND judged_count < $7
+        WHERE id = $1
         RETURNING *`,
       [id, JSON.stringify([entry]), patch.verdict, patch.reason,
-       patch.judge_name, entry.at, MAX_VERDICTS, entry.by]);
+       patch.judge_name, entry.at, entry.by]);
     return rows[0] || null;
   }
 
@@ -298,9 +301,9 @@ class PgStore {
     const { rows } = await this.pool.query(
       `SELECT count(*)::int AS total,
               count(*) FILTER (
-                WHERE judged_count < $1
-                  AND (claimed_at IS NULL OR claimed_at < $2))::int AS pending
-         FROM statements`, [MAX_VERDICTS, Date.now() + PARK_MS]);
+                WHERE judged_count = 0
+                  AND (claimed_at IS NULL OR claimed_at < $1))::int AS pending
+         FROM statements`, [Date.now() + PARK_MS]);
     return rows[0];
   }
 
@@ -339,4 +342,4 @@ async function openStore() {
   return new FileStore(dir).init();
 }
 
-module.exports = { openStore, newId, newToken, CLAIM_TTL_MS, MAX_VERDICTS, listOf };
+module.exports = { openStore, newId, newToken, CLAIM_TTL_MS, MAX_MAILS, listOf };

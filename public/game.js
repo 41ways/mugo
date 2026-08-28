@@ -1161,7 +1161,8 @@
       const v = list[i];
       const g = v.verdict === 'guilty';
       clear();
-      if (list.length > 1) addLine(el('p', 'say whisper', words(i === 0 ? '첫 번째 판결' : '두 번째 판결')));
+      const ORD = ['', '첫', '두', '세', '네', '다섯', '여섯'];
+      if (list.length > 1) addLine(el('p', 'say whisper', words(`${ORD[i + 1] || (i + 1)} 번째 판결`)));
       addLine(el('div', 'verdictbig ' + (g ? 'guilty' : 'innocent'), g ? '유죄' : '무죄'));
 
       await say(g ? [
@@ -1180,10 +1181,10 @@
     }
 
     // 둘이 갈렸으면, 아무도 그걸 맞춰주지 않는다는 것까지가 판결이다.
-    if (list.length > 1 && list[0].verdict !== list[1].verdict) {
+    if (list.length > 1 && list.some((v) => v.verdict !== list[0].verdict)) {
       await say([
         { hr: 1 },
-        { s: '두 사람이 같은 조서를 읽고 정반대에 닿았다.' },
+        { s: '같은 조서를 읽고 서로 반대에 닿은 사람들이 있다.' },
         { b: '회항에는 그 둘을 맞춰줄 사람이 없다. 두 판결은 그냥 나란히 남는다.' },
       ], { silent: true });
     }

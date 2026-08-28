@@ -61,9 +61,10 @@ const done = (code) => { srv.kill(); fs.rmSync(dir, { recursive: true, force: tr
   assert.equal(forC.seed, false, '두 번째 사람도 같은 조서를 받아야 한다');
   assert.equal(forC.caseId, forB.caseId, '같은 조서다');
 
-  // 세 번째는 자리가 없다 — 여기서야 지어낸 조서로 간다
+  // 세 번째 사람도 지어낸 조서로 가지 않는다. 실제 조서를 다시 준다.
   const forD = await post('/api/case', { player: 'D' });
-  assert.equal(forD.seed, true, '두 자리가 다 차면 시드');
+  assert.equal(forD.seed, false, '줄 게 없어도 시드로 가지 않는다');
+  assert.equal(forD.caseId, forB.caseId, '실제 조서를 다시 준다');
 
   // B 가 판결한다
   const v = await post('/api/verdict', {
@@ -83,15 +84,16 @@ const done = (code) => { srv.kill(); fs.rmSync(dir, { recursive: true, force: tr
   assert.equal(v2.ok, true);
   assert.equal(v2.nth, 2, '두 번째 통지');
 
-  // 세 번은 안 먹는다
+  // 세 번째 판결도 받는다. 다만 통지는 두 통까지라 주소가 이미 지워졌으면 안 나간다
   const third = await post('/api/verdict', {
     caseId: forB.caseId, verdict: 'guilty', judgeName: '정', player: 'E',
   });
-  assert.equal(third.already, true, '한 조서는 두 사람까지');
+  assert.equal(third.ok, true, '판결에는 상한이 없다');
+  assert.equal(third.nth, 3);
 
-  // 다 읽힌 조서는 대기열에서 빠진다
+  // 여러 번 읽힌 뒤에도 지어낸 조서로 가지 않는다
   const afterFull = await post('/api/case', { player: 'F' });
-  assert.equal(afterFull.seed, true, '두 번 다 읽힌 조서는 더 안 나간다');
+  assert.equal(afterFull.seed, false, '실제 조서가 있으면 늘 그걸 준다');
 
   // A 가 확인한다 — 갈린 두 판결이 나란히 남는다
   const [code, look] = await get('/api/statement/' + a.token);
@@ -100,7 +102,7 @@ const done = (code) => { srv.kill(); fs.rmSync(dir, { recursive: true, force: tr
   assert.equal(look.verdict, 'guilty', '칸에 남는 것은 첫 판결');
   assert.equal(look.judgeName, '을');
   assert.equal(look.reason, '손등의 상처가 설명되지 않는다');
-  assert.equal(look.verdicts.length, 2, '두 판결이 다 온다');
+  assert.equal(look.verdicts.length, 3, '판결이 온 만큼 다 온다');
   assert.equal(look.verdicts[1].verdict, 'innocent');
   assert.equal(look.verdicts[1].judgeName, '병');
 

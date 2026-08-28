@@ -10,7 +10,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { openStore, newId, newToken, MAX_VERDICTS, listOf } = require('./store.js');
+const { openStore, newId, newToken, MAX_MAILS, listOf } = require('./store.js');
 const { pickSeed } = require('./seeds.js');
 const mailer = require('./mailer.js');
 
@@ -119,13 +119,14 @@ async function apiVerdict(req, res) {
   });
   if (!row) return json(res, 200, { ok: true, delivered: false, already: true });
 
-  // 한 조서를 두 사람이 읽는다. 두 번째 통지는 앞의 판결을 뒤집을 수도 있다.
+  // 한 조서는 여러 번 읽힐 수 있다. 다만 통지는 앞의 두 번까지만 나간다 —
+  // 그 뒤에는 주소가 이미 지워져 있어서 보낼 곳이 없다.
   const seen = listOf(row.verdicts).length;
   const delivered = await mailer.sendVerdict(row, { nth: seen });
 
   // 주소는 마지막 통지가 실제로 나간 다음에 지운다. 실패했는데 지우면
   // 다시 보낼 길이 영영 없어지고, 첫 통에 지우면 둘째 통을 못 보낸다.
-  if (row.email && delivered && seen >= MAX_VERDICTS) await store.clearEmail(row.id);
+  if (row.email && delivered && seen >= MAX_MAILS) await store.clearEmail(row.id);
   json(res, 200, { ok: true, delivered, nth: seen });
 }
 
