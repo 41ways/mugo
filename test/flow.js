@@ -56,9 +56,14 @@ const done = (code) => { srv.kill(); fs.rmSync(dir, { recursive: true, force: tr
   assert.equal(forB.name, '갑');
   assert.deepEqual(forB.clues, ['개가 짖지 않았다', '창문이 안쪽에서 열려 있었다']);
 
-  // 물어간 사이 C 는 못 받는다
+  // 동시에 들어온 C 도 같은 조서를 받는다. 한 조서는 두 사람이 읽는다
   const forC = await post('/api/case', { player: 'C' });
-  assert.equal(forC.seed, true, '이미 물어간 진술은 안 나온다');
+  assert.equal(forC.seed, false, '두 번째 사람도 같은 조서를 받아야 한다');
+  assert.equal(forC.caseId, forB.caseId, '같은 조서다');
+
+  // 세 번째는 자리가 없다 — 여기서야 지어낸 조서로 간다
+  const forD = await post('/api/case', { player: 'D' });
+  assert.equal(forD.seed, true, '두 자리가 다 차면 시드');
 
   // B 가 판결한다
   const v = await post('/api/verdict', {
@@ -67,28 +72,26 @@ const done = (code) => { srv.kill(); fs.rmSync(dir, { recursive: true, force: tr
   });
   assert.equal(v.ok, true);
 
-  // 판결이 났어도, 다음 사람에게는 지어낸 조서 대신 이 조서가 다시 나간다.
-  // 아무와도 안 엮이는 판을 만들지 않는 것이 이 규칙의 전부다.
-  const forC2 = await post('/api/case', { player: 'C' });
-  assert.equal(forC2.seed, false, '판결된 조서라도 시드보다 먼저 나가야 한다');
-  assert.equal(forC2.name, '갑');
-
   // 자기가 판결한 조서는 다시 안 받는다
   const forBAgain = await post('/api/case', { player: 'B' });
   assert.equal(forBAgain.seed, true, 'B 는 자기가 판결한 조서를 또 받지 않는다');
 
-  // 두 번째 판결. 앞과 반대여도 그대로 받는다
+  // C 의 두 번째 판결. 앞과 반대여도 그대로 받는다
   const v2 = await post('/api/verdict', {
-    caseId: forC2.caseId, verdict: 'innocent', reason: '증거가 모자란다', judgeName: '병', player: 'C',
+    caseId: forC.caseId, verdict: 'innocent', reason: '증거가 모자란다', judgeName: '병', player: 'C',
   });
   assert.equal(v2.ok, true);
   assert.equal(v2.nth, 2, '두 번째 통지');
 
   // 세 번은 안 먹는다
   const third = await post('/api/verdict', {
-    caseId: forB.caseId, verdict: 'guilty', judgeName: '정', player: 'D',
+    caseId: forB.caseId, verdict: 'guilty', judgeName: '정', player: 'E',
   });
   assert.equal(third.already, true, '한 조서는 두 사람까지');
+
+  // 다 읽힌 조서는 대기열에서 빠진다
+  const afterFull = await post('/api/case', { player: 'F' });
+  assert.equal(afterFull.seed, true, '두 번 다 읽힌 조서는 더 안 나간다');
 
   // A 가 확인한다 — 갈린 두 판결이 나란히 남는다
   const [code, look] = await get('/api/statement/' + a.token);
@@ -115,11 +118,11 @@ const done = (code) => { srv.kill(); fs.rmSync(dir, { recursive: true, force: tr
   assert.equal(nf, 404);
 
   // 빈 진술은 거절
-  const empty = await post('/api/statement', { player: 'D', answers: ['', '', ''] });
+  const empty = await post('/api/statement', { player: 'Z1', answers: ['', '', ''] });
   assert.ok(empty.error, '빈 진술은 안 받는다');
 
   // 태그는 걸러진다
-  const dirty = await post('/api/statement', { player: 'E', answers: ['<script>x</script>', '', ''] });
+  const dirty = await post('/api/statement', { player: 'Z2', answers: ['<script>x</script>', '', ''] });
   const [, dl] = await get('/api/statement/' + dirty.token);
   assert.ok(!dl.answers[0].includes('<'), '꺾쇠는 지워진다');
 

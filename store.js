@@ -25,6 +25,21 @@ const listOf = (v) => (typeof v === 'string' ? JSON.parse(v || '[]') : (v || [])
 const judgedBy = (row, player) =>
   !!player && listOf(row.verdicts).some((v) => v.by && v.by === player);
 
+// 손으로 빼둔 조서. claimed_at 을 아주 먼 미래(2100년 따위)로 박아두면 대기열에서 빠진다.
+const PARK_MS = 365 * 24 * 60 * 60 * 1000;
+const parked = (row, now) => Number(row.claimed_at || 0) > now + PARK_MS;
+
+// 지금 이 조서를 붙들고 있는 사람들. 판결까지 안 가고 나간 사람은 시간이 지나면 놓는다.
+// 이미 판결한 사람의 손자국은 판결 쪽에서 세므로 여기서는 뺀다.
+const liveHolds = (row, now, me) => listOf(row.holds).filter((h) =>
+  h && h.by && h.by !== me &&
+  now - Number(h.at || 0) < CLAIM_TTL_MS &&
+  !judgedBy(row, h.by));
+
+// 몇 자리가 찼는가 — 판결한 사람 + 지금 붙들고 있는 사람.
+const taken = (row, now, me) =>
+  (row.judged_count != null ? row.judged_count : (row.judged_at ? 1 : 0)) + liveHolds(row, now, me).length;
+
 const newId = () => crypto.randomUUID();
 const newToken = () => crypto.randomBytes(12).toString('hex');
 
@@ -64,30 +79,20 @@ class FileStore {
     return row;
   }
 
-  async claim(excludePlayer) {
+  // 들어온 순서 그대로 하나씩. 한 조서를 두 사람이 읽고, 그 둘이 다 차야 다음 조서로 넘어간다.
+  // 두 사람이 동시에 들어오면 둘 다 같은 조서를 받는다 — 잠그지 않는다.
+  async claim(me) {
     const now = Date.now();
-    const older = (a, b) => a.created_at - b.created_at;   // 오래 기다린 사람부터
+    const line = this.rows
+      .filter((r) => !parked(r, now) && r.player !== me && !judgedBy(r, me))
+      .sort((a, b) => a.created_at - b.created_at);   // 오래 기다린 사람부터
 
-    // 1순위 — 아직 판결 안 난 진술. 둘 이상 쌓여 있으면 잠금이 걸려 하나씩 나간다.
-    const fresh = this.rows.filter((r) =>
-      !r.judged_at &&
-      r.player !== excludePlayer &&
-      (!r.claimed_at || now - r.claimed_at > CLAIM_TTL_MS)).sort(older);
-    if (fresh.length) {
-      fresh[0].claimed_at = now;
+    for (const r of line) {
+      if (taken(r, now, me) >= MAX_VERDICTS) continue;
+      r.holds = liveHolds(r, now, me).concat([{ by: me, at: now }]);
       await this.flush();
-      return fresh[0];
+      return r;
     }
-
-    // 2순위 — 이미 판결이 난 진술을 한 번 더 돌린다. 판결이 갈려도 상관없다.
-    // 지어낸 조서를 주느니, 실제로 누가 쓴 것을 주는 편이 낫다.
-    const again = this.rows.filter((r) =>
-      r.judged_at &&
-      (r.judged_count || 1) < MAX_VERDICTS &&
-      r.player !== excludePlayer &&
-      !judgedBy(r, excludePlayer)).sort(older);
-    if (again.length) return again[0];
-
     return null;
   }
 
@@ -108,6 +113,7 @@ class FileStore {
     row.verdicts = (row.verdicts || []).concat([entry]);
     row.judged_count = seen + 1;
     if (!row.judged_at) Object.assign(row, patch, { judged_at: entry.at });  // 첫 판결은 칸에도 남긴다
+    row.holds = listOf(row.holds).filter((h) => h.by !== entry.by);          // 판결했으니 손을 놓는다
     await this.flush();
     return row;
   }
@@ -118,9 +124,11 @@ class FileStore {
   }
 
   async counts() {
+    const now = Date.now();
     return {
       total: this.rows.length,
-      pending: this.rows.filter((r) => !r.judged_at).length,
+      pending: this.rows.filter((r) =>
+        !parked(r, now) && (r.judged_count != null ? r.judged_count : (r.judged_at ? 1 : 0)) < MAX_VERDICTS).length,
     };
   }
 
@@ -162,6 +170,8 @@ ALTER TABLE statements ADD COLUMN IF NOT EXISTS caught TEXT;
 -- 한 조서를 두 사람까지 읽는다. 판결은 갈려도 된다.
 ALTER TABLE statements ADD COLUMN IF NOT EXISTS judged_count INT NOT NULL DEFAULT 0;
 ALTER TABLE statements ADD COLUMN IF NOT EXISTS verdicts JSONB NOT NULL DEFAULT '[]'::jsonb;
+-- 지금 이 조서를 붙들고 있는 사람들. 두 자리까지 동시에 찬다.
+ALTER TABLE statements ADD COLUMN IF NOT EXISTS holds JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 -- 이미 판결이 난 옛 행들을 새 칸으로 옮긴다. 한 번 읽힌 것으로 친다.
 UPDATE statements
@@ -200,33 +210,45 @@ class PgStore {
   // 한 방에 고르고 잠근다. 동시에 들어온 두 사람이 같은 진술을 받지 않도록.
   // 아직 판결 안 난 것이 먼저고, 그게 없으면 이미 판결된 것을 한 번 더 돌린다.
   // 마지막까지 없을 때만 지어낸 조서로 간다 — 사람이 쓴 것이 늘 우선이다.
-  async claim(excludePlayer) {
+  // 들어온 순서 그대로 하나씩. 한 조서를 두 사람이 읽고, 그 둘이 다 차야 다음으로 넘어간다.
+  // 두 사람이 동시에 들어오면 둘 다 같은 조서를 받는다.
+  //
+  // 자리를 세는 일과 채우는 일이 갈라지면 셋이 들어갈 수 있어서, 한 트랜잭션 안에서
+  // 앞줄 몇 개를 FOR UPDATE 로 잡고 센다. SKIP LOCKED 를 쓰면 자리가 남았는데도
+  // 건너뛰어 버리므로 여기서는 기다리는 쪽이 맞다.
+  async claim(me) {
     const now = Date.now();
-    const { rows } = await this.pool.query(
-      `UPDATE statements SET claimed_at = $1
-        WHERE id = (
-          SELECT id FROM statements
-           WHERE judged_at IS NULL
-             AND player <> $2
-             AND (claimed_at IS NULL OR claimed_at < $3)
-           ORDER BY created_at
-           LIMIT 1
-           FOR UPDATE SKIP LOCKED)
-        RETURNING *`,
-      [now, excludePlayer, now - CLAIM_TTL_MS]);
-    if (rows[0]) return rows[0];
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query(
+        `SELECT * FROM statements
+          WHERE judged_count < $1
+            AND player <> $2
+            AND NOT (verdicts @> $3::jsonb)
+            AND (claimed_at IS NULL OR claimed_at < $4)
+          ORDER BY created_at
+          LIMIT 10
+          FOR UPDATE`,
+        [MAX_VERDICTS, me, JSON.stringify([{ by: me }]), now + PARK_MS]);
 
-    // 두 번째 배심원. 잠그지 않는다 — 이미 판결이 난 조서라 서로 겹쳐도 된다.
-    const again = await this.pool.query(
-      `SELECT * FROM statements
-        WHERE judged_at IS NOT NULL
-          AND judged_count < $2
-          AND player <> $1
-          AND NOT (verdicts @> $3::jsonb)
-        ORDER BY created_at
-        LIMIT 1`,
-      [excludePlayer, MAX_VERDICTS, JSON.stringify([{ by: excludePlayer }])]);
-    return again.rows[0] || null;
+      for (const r of rows) {
+        if (taken(r, now, me) >= MAX_VERDICTS) continue;
+        const next = liveHolds(r, now, me).concat([{ by: me, at: now }]);
+        const upd = await client.query(
+          `UPDATE statements SET holds = $2::jsonb WHERE id = $1 RETURNING *`,
+          [r.id, JSON.stringify(next)]);
+        await client.query('COMMIT');
+        return upd.rows[0];
+      }
+      await client.query('COMMIT');
+      return null;
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async byId(id) {
@@ -246,6 +268,8 @@ class PgStore {
       `UPDATE statements
           SET judged_count = judged_count + 1,
               verdicts     = verdicts || $2::jsonb,
+              holds        = COALESCE((SELECT jsonb_agg(h) FROM jsonb_array_elements(holds) h
+                                        WHERE h->>'by' IS DISTINCT FROM $8), '[]'::jsonb),
               verdict      = COALESCE(verdict, $3),
               reason       = COALESCE(reason, $4),
               judge_name   = COALESCE(judge_name, $5),
@@ -253,7 +277,7 @@ class PgStore {
         WHERE id = $1 AND judged_count < $7
         RETURNING *`,
       [id, JSON.stringify([entry]), patch.verdict, patch.reason,
-       patch.judge_name, entry.at, MAX_VERDICTS]);
+       patch.judge_name, entry.at, MAX_VERDICTS, entry.by]);
     return rows[0] || null;
   }
 
@@ -264,8 +288,10 @@ class PgStore {
   async counts() {
     const { rows } = await this.pool.query(
       `SELECT count(*)::int AS total,
-              count(*) FILTER (WHERE judged_at IS NULL)::int AS pending
-         FROM statements`);
+              count(*) FILTER (
+                WHERE judged_count < $1
+                  AND (claimed_at IS NULL OR claimed_at < $2))::int AS pending
+         FROM statements`, [MAX_VERDICTS, Date.now() + PARK_MS]);
     return rows[0];
   }
 
@@ -282,7 +308,7 @@ class PgStore {
   async all() {
     const { rows } = await this.pool.query(
       `SELECT id, name, caught, created_at, claimed_at, judged_at, verdict, judge_name,
-              judged_count, verdicts, (email IS NOT NULL) AS email
+              judged_count, verdicts, holds, (email IS NOT NULL) AS email
          FROM statements`);
     return rows;
   }
