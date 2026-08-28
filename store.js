@@ -40,6 +40,20 @@ const liveHolds = (row, now, me) => listOf(row.holds).filter((h) =>
 const taken = (row, now, me) =>
   (row.judged_count != null ? row.judged_count : (row.judged_at ? 1 : 0)) + liveHolds(row, now, me).length;
 
+// 누구에게 무엇을 줄까.
+//   1순위 — 아무도 아직 안 건드린 조서. 한 사람에 한 조서가 기본이다.
+//   2순위 — 그런 게 없을 때만, 이미 한 자리가 찬 조서를 두 사람째로 준다.
+//           동시에 들어와 앞사람이 붙들고 있거나, 남은 게 읽힌 것뿐인 경우다.
+//   그마저 없으면 null — 부르는 쪽이 지어낸 조서로 간다.
+function choose(rows, now, me) {
+  const line = rows
+    .filter((r) => !parked(r, now) && r.player !== me && !judgedBy(r, me))
+    .sort((a, b) => a.created_at - b.created_at);   // 오래 기다린 사람부터
+  return line.find((r) => taken(r, now, me) === 0)
+      || line.find((r) => taken(r, now, me) < MAX_VERDICTS)
+      || null;
+}
+
 const newId = () => crypto.randomUUID();
 const newToken = () => crypto.randomBytes(12).toString('hex');
 
@@ -79,21 +93,16 @@ class FileStore {
     return row;
   }
 
-  // 들어온 순서 그대로 하나씩. 한 조서를 두 사람이 읽고, 그 둘이 다 차야 다음 조서로 넘어간다.
-  // 두 사람이 동시에 들어오면 둘 다 같은 조서를 받는다 — 잠그지 않는다.
+  // 들어온 순서대로 하나씩, 한 사람에 한 조서. 그게 기본이다.
+  // 아무도 안 건드린 조서가 없을 때만 — 동시에 들어와 앞사람이 붙들고 있거나,
+  // 남은 게 이미 읽힌 것뿐일 때만 — 한 조서를 두 사람째 읽힌다.
   async claim(me) {
     const now = Date.now();
-    const line = this.rows
-      .filter((r) => !parked(r, now) && r.player !== me && !judgedBy(r, me))
-      .sort((a, b) => a.created_at - b.created_at);   // 오래 기다린 사람부터
-
-    for (const r of line) {
-      if (taken(r, now, me) >= MAX_VERDICTS) continue;
-      r.holds = liveHolds(r, now, me).concat([{ by: me, at: now }]);
-      await this.flush();
-      return r;
-    }
-    return null;
+    const pick = choose(this.rows, now, me);
+    if (!pick) return null;
+    pick.holds = liveHolds(pick, now, me).concat([{ by: me, at: now }]);
+    await this.flush();
+    return pick;
   }
 
   async byId(id) {
@@ -210,8 +219,8 @@ class PgStore {
   // 한 방에 고르고 잠근다. 동시에 들어온 두 사람이 같은 진술을 받지 않도록.
   // 아직 판결 안 난 것이 먼저고, 그게 없으면 이미 판결된 것을 한 번 더 돌린다.
   // 마지막까지 없을 때만 지어낸 조서로 간다 — 사람이 쓴 것이 늘 우선이다.
-  // 들어온 순서 그대로 하나씩. 한 조서를 두 사람이 읽고, 그 둘이 다 차야 다음으로 넘어간다.
-  // 두 사람이 동시에 들어오면 둘 다 같은 조서를 받는다.
+  // 들어온 순서대로 하나씩, 한 사람에 한 조서. 아무도 안 건드린 것이 없을 때만
+  // 이미 한 자리 찬 조서를 두 사람째 내준다(동시 접속, 또는 남은 게 읽힌 것뿐일 때).
   //
   // 자리를 세는 일과 채우는 일이 갈라지면 셋이 들어갈 수 있어서, 한 트랜잭션 안에서
   // 앞줄 몇 개를 FOR UPDATE 로 잡고 센다. SKIP LOCKED 를 쓰면 자리가 남았는데도
@@ -228,12 +237,12 @@ class PgStore {
             AND NOT (verdicts @> $3::jsonb)
             AND (claimed_at IS NULL OR claimed_at < $4)
           ORDER BY created_at
-          LIMIT 10
+          LIMIT 50
           FOR UPDATE`,
         [MAX_VERDICTS, me, JSON.stringify([{ by: me }]), now + PARK_MS]);
 
-      for (const r of rows) {
-        if (taken(r, now, me) >= MAX_VERDICTS) continue;
+      const r = choose(rows, now, me);
+      if (r) {
         const next = liveHolds(r, now, me).concat([{ by: me, at: now }]);
         const upd = await client.query(
           `UPDATE statements SET holds = $2::jsonb WHERE id = $1 RETURNING *`,

@@ -57,6 +57,17 @@ const row = (player, name) => ({
   assert.equal((await s.byId(b.id)).holds.some((h) => h.by === 'p1'), false, '판결한 사람의 손자국은 지운다');
   assert.equal(await s.claim('p8'), null, 'a 는 다 읽혔고 b 는 자리가 없다');
 
+  // 한 사람에 한 조서가 기본이다 — 아무도 안 건드린 조서가 있으면 그게 먼저다.
+  // 이미 한 번 읽힌 것을 두 사람째 내주는 건 그런 게 하나도 없을 때뿐이다.
+  const d = await s.insert(row('p9', '정'));       // 새로 들어온, 아무도 안 건드린 조서
+  const forP10 = await s.claim('p10');
+  assert.equal(forP10.id, d.id, '읽힌 적 없는 조서가 먼저다 — 오래됐다고 두 번째 자리를 주지 않는다');
+
+  // 그 조서마저 누가 붙들고 있으면, 그때야 이미 읽힌 조서로 넘어간다
+  const forP11 = await s.claim('p11');
+  assert.equal(forP11.id, d.id, '줄 게 없으면 같은 조서를 두 사람째 — 동시 접속이 이 경우다');
+  assert.equal(await s.claim('p12'), null, '두 자리마저 차면 지어낸 조서로 간다');
+
   // 주소는 보내고 나면 지운다
   await s.clearEmail(a.id);
   assert.equal((await s.byId(a.id)).email, null);
@@ -64,8 +75,9 @@ const row = (player, name) => ({
   // 번호로 조회
   assert.equal((await s.byToken(a.token)).name, '갑');
 
+  // a 는 두 번 다 읽혔고, b 는 1/2, d 는 0/2 — 「아직 다 안 읽힌 것」은 둘이다
   const c = await s.counts();
-  assert.deepEqual(c, { total: 2, pending: 1 });
+  assert.deepEqual(c, { total: 3, pending: 2 });
 
   // 다시 열어도 남아 있다
   const s2 = await openStore();

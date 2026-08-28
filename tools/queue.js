@@ -31,7 +31,7 @@ const span = (ms) => {
     (held.length ? `, 손으로 빼둔 것 ${held.length}` : '') + '\n');
 
   if (open.length) {
-    console.log('── 대기열 (앞에서부터 두 사람씩 읽는다) ──');
+    console.log('── 대기열 (0/2 인 것이 먼저 나간다. 1/2 은 줄 게 없을 때만) ──');
     open.forEach((r, i) => {
       const holds = (typeof r.holds === 'string' ? JSON.parse(r.holds || '[]') : (r.holds || []))
         .filter((h) => now - Number(h.at || 0) < 30 * 60 * 1000);
