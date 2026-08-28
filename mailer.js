@@ -68,7 +68,8 @@ function shell(inner) {
     <div style="height:1px;background:#c9bda4;margin:28px 0 14px;"></div>
     <div style="font-size:11.5px;color:#8a7c66;line-height:1.7;">
       이 통지는 웹 게임 <a href="${SITE}" style="color:#8a5a20;">무고</a>에서 자동으로 발송됐다.
-      당신의 주소는 이 한 통을 보내기 위해서만 보관됐고, 발송과 동시에 지워졌다.
+      회항에서는 한 조서를 두 사람이 읽는다. 당신의 주소는 그 두 통을 보내기 위해서만
+      보관되고, 마지막 한 통이 나가는 즉시 지워진다.
     </div>
   </div>
 </div>`;
@@ -76,26 +77,46 @@ function shell(inner) {
 
 const P = (t) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.85;">${t}</p>`;
 
-function verdictMail(row) {
-  const guilty = row.verdict === 'guilty';
+const listOf = (v) => (typeof v === 'string' ? JSON.parse(v || '[]') : (v || []));
+
+function verdictMail(row, o = {}) {
+  const all = listOf(row.verdicts);
+  const nth = o.nth || all.length || 1;
+  // 이번에 알릴 판결. 칸에 남은 것은 늘 첫 판결이라, 둘째 통지는 목록에서 꺼낸다.
+  const mine = all[nth - 1] || { verdict: row.verdict, reason: row.reason, judge_name: row.judge_name };
+  const first = all[0] || mine;
+  const second = nth >= 2;
+  const flipped = second && first.verdict !== mine.verdict;
+
+  const guilty = mine.verdict === 'guilty';
   // 장부에 적은 이름. 제목과 본문 텍스트는 날것으로, HTML 본문만 이스케이프한다.
   const rawName = String(row.name || '이름 없는 자');
-  const rawJudge = String(row.judge_name || '이름을 밝히지 않은 탐정');
+  const rawJudge = String(mine.judge_name || '이름을 밝히지 않은 탐정');
   const name = esc(rawName);
   const judge = esc(rawJudge);
-  const reason = String(row.reason || '').trim();
+  const reason = String(mine.reason || '').trim();
 
-  const head = guilty
+  const eyebrow = second
+    ? `<div style="font-size:11px;letter-spacing:.28em;color:#8a7c66;margin:0 0 8px;">두 번째 판결</div>`
+    : '';
+  const head = eyebrow + (guilty
     ? `<div style="font-size:27px;font-weight:700;letter-spacing:-.02em;color:#7d1c14;">유죄</div>`
-    : `<div style="font-size:27px;font-weight:700;letter-spacing:-.02em;color:#3d4a3a;">무죄</div>`;
+    : `<div style="font-size:27px;font-weight:700;letter-spacing:-.02em;color:#3d4a3a;">무죄</div>`);
+
+  // 두 번째 통지. 회항은 한 조서를 두 사람에게 읽힌다. 두 사람이 반대로 읽어도
+  // 아무도 그걸 조정하지 않는다 — 그게 이 마을의 재판이다.
+  const openLine = second
+    ? P(`${name}. 당신의 조서는 한 번 더 읽혔다. 이번에는 다른 사람이었다.` +
+        (flipped ? ' 그리고 앞사람과 정반대로 읽었다.' : ' 그리고 앞사람과 같은 결론에 닿았다.'))
+    : null;
 
   const body = guilty ? [
-    P(`${name}. 재판은 열렸으나 오래 걸리지 않았다.`),
-    P(`탐정 <b>${judge}</b>${josa(row.judge_name, '이/가')} 당신의 진술을 읽었고, 당신을 범인으로 지목했다. 회항에서 그 사람의 말은 판결과 같은 무게를 가진다. 배심원은 십일 분 만에 돌아왔다.`),
+    openLine || P(`${name}. 재판은 열렸으나 오래 걸리지 않았다.`),
+    P(`탐정 <b>${judge}</b>${josa(rawJudge, '이/가')} 당신의 진술을 읽었고, 당신을 범인으로 지목했다. 회항에서 그 사람의 말은 판결과 같은 무게를 가진다. 배심원은 십일 분 만에 돌아왔다.`),
     P(`선고는 사형이었다. 회항에는 상소할 곳이 없다. 판결이 떨어지자 당신은 그 자리에서 끌려 나갔고, 형은 그날 부두 창고 앞 광장에서 곧바로 집행됐다. 안개가 짙어 구경꾼은 많지 않았다.`),
   ] : [
-    P(`${name}. 재판은 열리지 않았다.`),
-    P(`탐정 <b>${judge}</b>${josa(row.judge_name, '이/가')} 당신의 진술을 읽었고, 증거가 사람을 목매달 만큼은 아니라고 했다. 서류에 도장이 찍혔고, 당신은 그날 밤 뒷문으로 나왔다.`),
+    openLine || P(`${name}. 재판은 열리지 않았다.`),
+    P(`탐정 <b>${judge}</b>${josa(rawJudge, '이/가')} 당신의 진술을 읽었고, 증거가 사람을 목매달 만큼은 아니라고 했다. 서류에 도장이 찍혔고, 당신은 그날 밤 뒷문으로 나왔다.`),
     P(`아무도 사과하지 않았다. 안개 속으로 걸어 나가는 당신의 뒷모습을 간수 하나가 오래 지켜봤다고 한다.`),
   ];
 
@@ -103,13 +124,17 @@ function verdictMail(row) {
     <div style="margin:22px 0 4px;font-size:11px;letter-spacing:.28em;color:#8a7c66;">탐정의 소견</div>
     <div style="border-left:2px solid #a08a5e;padding:8px 0 8px 14px;margin:8px 0 4px;font-size:14.5px;line-height:1.8;color:#4a4237;">${esc(reason)}</div>` : '';
 
+  const clash = flipped ? P(
+    `<span style="font-size:13px;color:#6d6355;">두 사람이 같은 조서를 읽고 정반대에 닿았다. ` +
+    `회항에는 그 둘을 맞춰줄 사람이 없다. 두 판결은 그냥 나란히 남는다.</span>`) : '';
+
   const tail = P(`<span style="font-size:13px;color:#6d6355;">당신을 판결한 사람도 당신과 똑같은 밤을 보냈고, 지금 어딘가에서 자기 판결을 기다리고 있다.</span>`);
 
   return {
     // 제목에도 장부에 적은 이름을 넣는다. 받은 사람이 자기 앞으로 온 것인 줄 알아야 한다.
-    subject: `[회항 지방법원] ${rawName} — 판결: ${guilty ? '유죄' : '무죄'}`,
-    html: shell(head + '<div style="height:18px"></div>' + body.join('') + quoted + tail),
-    text: `${guilty ? '유죄' : '무죄'}\n\n${rawName}. 탐정 ${rawJudge}${josa(row.judge_name, '이/가')} 당신의 진술을 읽었다.\n` +
+    subject: `[회항 지방법원] ${rawName} — ${second ? '두 번째 판결' : '판결'}: ${guilty ? '유죄' : '무죄'}`,
+    html: shell(head + '<div style="height:18px"></div>' + body.join('') + quoted + clash + tail),
+    text: `${second ? '두 번째 판결 — ' : ''}${guilty ? '유죄' : '무죄'}\n\n${rawName}. 탐정 ${rawJudge}${josa(rawJudge, '이/가')} 당신의 진술을 읽었다.\n` +
           (guilty ? '사형이 선고됐고, 그 자리에서 곧바로 집행됐다.\n' : '증거 불충분. 당신은 풀려났다.\n') +
           (reason ? `\n탐정의 소견: ${reason}\n` : '') + `\n${SITE}`,
   };
@@ -187,7 +212,7 @@ async function send(to, mail) {
 const via = () => (BREVO_KEY ? 'brevo' : RESEND_KEY ? 'resend' : transport ? 'smtp' : 'none');
 
 module.exports = {
-  sendVerdict: (row) => send(row.email, verdictMail(row)),
+  sendVerdict: (row, o) => send(row.email, verdictMail(row, o)),
   verdictMail,
   enabled: () => !!BREVO_KEY || !!RESEND_KEY || !!transport,
   via,

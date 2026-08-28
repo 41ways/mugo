@@ -10,7 +10,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { openStore, newId, newToken } = require('./store.js');
+const { openStore, newId, newToken, MAX_VERDICTS, listOf } = require('./store.js');
 const { pickSeed } = require('./seeds.js');
 const mailer = require('./mailer.js');
 
@@ -113,14 +113,20 @@ async function apiVerdict(req, res) {
   if (!caseId) return json(res, 400, { error: 'caseId 없음' });
   if (caseId.startsWith('seed:')) return json(res, 200, { ok: true, delivered: false, seed: true });
 
-  const row = await store.judge(caseId, { verdict, reason, judge_name: judgeName });
+  const player = clip(body.player, 64) || 'anon';
+  const row = await store.judge(caseId, {
+    verdict, reason, judge_name: judgeName, judged_by: player,
+  });
   if (!row) return json(res, 200, { ok: true, delivered: false, already: true });
 
-  // 메일은 한 번만 쓰고 지운다 — 단, 실제로 나갔을 때만.
-  // 발송이 실패했는데도 주소를 지우면 다시 보낼 길이 영영 없어진다.
-  const delivered = await mailer.sendVerdict(row);
-  if (row.email && delivered) await store.clearEmail(row.id);
-  json(res, 200, { ok: true, delivered });
+  // 한 조서를 두 사람이 읽는다. 두 번째 통지는 앞의 판결을 뒤집을 수도 있다.
+  const seen = listOf(row.verdicts).length;
+  const delivered = await mailer.sendVerdict(row, { nth: seen });
+
+  // 주소는 마지막 통지가 실제로 나간 다음에 지운다. 실패했는데 지우면
+  // 다시 보낼 길이 영영 없어지고, 첫 통에 지우면 둘째 통을 못 보낸다.
+  if (row.email && delivered && seen >= MAX_VERDICTS) await store.clearEmail(row.id);
+  json(res, 200, { ok: true, delivered, nth: seen });
 }
 
 // 내 진술을 대기열에 넣는다.
@@ -169,6 +175,10 @@ async function apiLookup(res, token) {
     verdict: row.verdict,
     reason: row.reason,
     judgeName: row.judge_name,
+    // 두 사람이 읽었으면 둘 다 내놓는다. 서로 반대여도 그대로.
+    verdicts: listOf(row.verdicts).map((v) => ({
+      verdict: v.verdict, reason: v.reason, judgeName: v.judge_name, at: v.at,
+    })),
     waited: Date.now() - Number(row.created_at),
   });
 }

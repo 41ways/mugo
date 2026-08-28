@@ -38,9 +38,15 @@ const span = (ms) => {
   if (done.length) {
     console.log('── 판결이 끝난 사람 ──');
     done.slice(0, 20).forEach((r) => {
-      console.log(`  ${r.name} → ${r.verdict === 'guilty' ? '유죄' : '무죄'}` +
-        `  (탐정 ${r.judge_name || '?'}, ${span(now - Number(r.judged_at))} 전)` +
-        `  ${r.email ? '통지 대기' : '통지 완료·주소 삭제'}`);
+      const vs = (typeof r.verdicts === 'string' ? JSON.parse(r.verdicts || '[]') : (r.verdicts || []));
+      const read = vs.length || (r.judged_at ? 1 : 0);
+      const line = vs.length
+        ? vs.map((v) => `${v.verdict === 'guilty' ? '유죄' : '무죄'}(${v.judge_name || '?'})`).join('  ·  ')
+        : `${r.verdict === 'guilty' ? '유죄' : '무죄'}(${r.judge_name || '?'})`;
+      const split = vs.length > 1 && vs[0].verdict !== vs[1].verdict ? '  ← 갈림' : '';
+      console.log(`  ${r.name} → ${line}${split}` +
+        `  [${read}/2 읽힘]  ${span(now - Number(r.judged_at))} 전` +
+        `  ${r.email ? '통지 대기' : '주소 삭제됨'}`);
     });
     console.log('');
   }

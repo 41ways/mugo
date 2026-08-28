@@ -838,7 +838,8 @@
 
     // 판결을 보낸다. 앞사람에게 메일이 나가는 지점.
     api('/api/verdict', {
-      caseId: c.caseId, verdict: verdict.v, reason: verdict.reason, judgeName: state.name,
+      caseId: c.caseId, verdict: verdict.v, reason: verdict.reason,
+      judgeName: state.name, player: state.player,
     }).catch(() => {});
 
     await say(verdict.v === 'guilty' ? S.act2.guilty : S.act2.innocent);
@@ -1151,22 +1152,41 @@
       return backLink();
     }
 
-    clear();
-    addLine(el('div', 'verdictbig ' + (r.verdict === 'guilty' ? 'guilty' : 'innocent'),
-      r.verdict === 'guilty' ? '유죄' : '무죄'));
+    // 회항은 조서 하나를 두 사람에게 읽힌다. 온 만큼 다 보여준다.
+    const list = (r.verdicts && r.verdicts.length)
+      ? r.verdicts
+      : [{ verdict: r.verdict, reason: r.reason, judgeName: r.judgeName }];
 
-    await say(r.verdict === 'guilty' ? [
-      { s: `${r.name}. 재판은 열렸고, 십일 분 걸렸다.` },
-      { s: `탐정 ${r.judgeName}${josa(r.judgeName, '이/가')} 당신의 진술을 읽었다.` },
-      { s: '선고는 사형이었다. 회항에는 상소할 곳이 없다.' },
-      { s: '당신은 그 자리에서 끌려 나갔고, 형은 그날 부두 창고 앞 광장에서 곧바로 집행됐다. 안개가 짙어 구경꾼은 많지 않았다.' },
-    ] : [
-      { s: `${r.name}. 재판은 열리지 않았다.` },
-      { s: `탐정 ${r.judgeName}${josa(r.judgeName, '이/가')} 당신의 진술을 읽었고, 증거가 사람을 목매달 만큼은 아니라고 했다.` },
-      { s: '아무도 사과하지 않았다. 당신은 그날 밤 뒷문으로 나왔다.' },
-    ], { silent: true });
+    for (let i = 0; i < list.length; i++) {
+      const v = list[i];
+      const g = v.verdict === 'guilty';
+      clear();
+      if (list.length > 1) addLine(el('p', 'say whisper', words(i === 0 ? '첫 번째 판결' : '두 번째 판결')));
+      addLine(el('div', 'verdictbig ' + (g ? 'guilty' : 'innocent'), g ? '유죄' : '무죄'));
 
-    if (r.reason) await fileCard('탐정의 소견', `<p class="memo">${esc(r.reason)}</p>`);
+      await say(g ? [
+        { s: `${r.name}. 재판은 열렸고, 십일 분 걸렸다.` },
+        { s: `탐정 ${v.judgeName}${josa(v.judgeName, '이/가')} 당신의 진술을 읽었다.` },
+        { s: '선고는 사형이었다. 회항에는 상소할 곳이 없다.' },
+        { s: '당신은 그 자리에서 끌려 나갔고, 형은 그날 부두 창고 앞 광장에서 곧바로 집행됐다. 안개가 짙어 구경꾼은 많지 않았다.' },
+      ] : [
+        { s: `${r.name}. 재판은 열리지 않았다.` },
+        { s: `탐정 ${v.judgeName}${josa(v.judgeName, '이/가')} 당신의 진술을 읽었고, 증거가 사람을 목매달 만큼은 아니라고 했다.` },
+        { s: '아무도 사과하지 않았다. 당신은 그날 밤 뒷문으로 나왔다.' },
+      ], { silent: true });
+
+      if (v.reason) await fileCard('탐정의 소견', `<p class="memo">${esc(v.reason)}</p>`);
+      if (i < list.length - 1) await turn(false);
+    }
+
+    // 둘이 갈렸으면, 아무도 그걸 맞춰주지 않는다는 것까지가 판결이다.
+    if (list.length > 1 && list[0].verdict !== list[1].verdict) {
+      await say([
+        { hr: 1 },
+        { s: '두 사람이 같은 조서를 읽고 정반대에 닿았다.' },
+        { b: '회항에는 그 둘을 맞춰줄 사람이 없다. 두 판결은 그냥 나란히 남는다.' },
+      ], { silent: true });
+    }
     backLink();
   }
 

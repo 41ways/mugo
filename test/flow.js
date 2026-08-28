@@ -62,26 +62,50 @@ const done = (code) => { srv.kill(); fs.rmSync(dir, { recursive: true, force: tr
 
   // B 가 판결한다
   const v = await post('/api/verdict', {
-    caseId: forB.caseId, verdict: 'guilty', reason: '손등의 상처가 설명되지 않는다', judgeName: '을',
+    caseId: forB.caseId, verdict: 'guilty', reason: '손등의 상처가 설명되지 않는다',
+    judgeName: '을', player: 'B',
   });
   assert.equal(v.ok, true);
 
-  // 두 번은 안 먹는다
-  const again = await post('/api/verdict', { caseId: forB.caseId, verdict: 'innocent' });
-  assert.equal(again.already, true, '판결은 한 번뿐');
+  // 판결이 났어도, 다음 사람에게는 지어낸 조서 대신 이 조서가 다시 나간다.
+  // 아무와도 안 엮이는 판을 만들지 않는 것이 이 규칙의 전부다.
+  const forC2 = await post('/api/case', { player: 'C' });
+  assert.equal(forC2.seed, false, '판결된 조서라도 시드보다 먼저 나가야 한다');
+  assert.equal(forC2.name, '갑');
 
-  // A 가 확인한다
+  // 자기가 판결한 조서는 다시 안 받는다
+  const forBAgain = await post('/api/case', { player: 'B' });
+  assert.equal(forBAgain.seed, true, 'B 는 자기가 판결한 조서를 또 받지 않는다');
+
+  // 두 번째 판결. 앞과 반대여도 그대로 받는다
+  const v2 = await post('/api/verdict', {
+    caseId: forC2.caseId, verdict: 'innocent', reason: '증거가 모자란다', judgeName: '병', player: 'C',
+  });
+  assert.equal(v2.ok, true);
+  assert.equal(v2.nth, 2, '두 번째 통지');
+
+  // 세 번은 안 먹는다
+  const third = await post('/api/verdict', {
+    caseId: forB.caseId, verdict: 'guilty', judgeName: '정', player: 'D',
+  });
+  assert.equal(third.already, true, '한 조서는 두 사람까지');
+
+  // A 가 확인한다 — 갈린 두 판결이 나란히 남는다
   const [code, look] = await get('/api/statement/' + a.token);
   assert.equal(code, 200);
   assert.equal(look.judged, true);
-  assert.equal(look.verdict, 'guilty');
+  assert.equal(look.verdict, 'guilty', '칸에 남는 것은 첫 판결');
   assert.equal(look.judgeName, '을');
   assert.equal(look.reason, '손등의 상처가 설명되지 않는다');
+  assert.equal(look.verdicts.length, 2, '두 판결이 다 온다');
+  assert.equal(look.verdicts[1].verdict, 'innocent');
+  assert.equal(look.verdicts[1].judgeName, '병');
 
   // 주소는 「보내진 뒤에만」 지워진다.
   // 이 테스트에는 발송 경로가 없어서 delivered=false 다. 그러면 주소가 남아야 한다 —
   // 실패했는데도 지워버리면 다시 보낼 길이 영영 없어진다(tools/resend.js 가 이걸 먹고 산다).
   assert.equal(v.delivered, false, '발송 경로가 없으니 delivered 는 false');
+  assert.equal(v2.delivered, false);
   const saved = JSON.parse(fs.readFileSync(path.join(dir, 'statements.json'), 'utf8'));
   assert.equal(saved[0].email, 'a@example.com', '발송에 실패했으면 주소는 남아 있어야 한다');
   assert.ok(log.includes('a@example.com'), '메일이 (콘솔로라도) 나가야 한다');
