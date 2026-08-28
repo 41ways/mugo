@@ -182,8 +182,16 @@ async function send(to, mail) {
   }
 }
 
+// 어느 길로 나가는지. 대시보드를 안 열고도 /healthz 로 확인할 수 있어야 한다 —
+// 키가 빠졌는데 mail:true 만 보고 넘어가면 통지가 죽는 걸 알 방법이 없다.
+const via = () => (BREVO_KEY ? 'brevo' : RESEND_KEY ? 'resend' : transport ? 'smtp' : 'none');
+
 module.exports = {
   sendVerdict: (row) => send(row.email, verdictMail(row)),
   verdictMail,
   enabled: () => !!BREVO_KEY || !!RESEND_KEY || !!transport,
+  via,
+  // 통지에 실리는 주소. mug0 과 mugo 는 한 글자 차이로 죽은 링크가 된다.
+  site: () => SITE,
+  from: () => splitFrom(FROM).email,
 };

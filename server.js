@@ -202,7 +202,15 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   const p = url.pathname;
 
-  if (p === '/healthz') return json(res, 200, { ok: true, mail: mailer.enabled() });
+  if (p === '/healthz') {
+    return json(res, 200, {
+      ok: true,
+      mail: mailer.enabled(),
+      via: mailer.via(),       // brevo · resend · smtp · none
+      from: mailer.from(),     // 발신자 — Brevo 에서 인증된 주소여야 나간다
+      site: mailer.site(),     // 통지에 실리는 주소
+    });
+  }
 
   if (p.startsWith('/api/')) {
     const ip = ipOf(req);
