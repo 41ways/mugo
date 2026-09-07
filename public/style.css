@@ -90,6 +90,8 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
 #tapslot{flex:none; min-height:52px; display:flex; align-items:center; justify-content:flex-end}
 /* 관찰 화면 — 사진을 크게 쓰고 가운데로 모은다 */
 #stage.look #flow{display:flex; flex-direction:column; justify-content:center; gap:4px}
+/* 폭으로만 눌러야 사진 비율이 안 깨진다 — 표시 좌표가 %라서 비율이 틀어지면
+   점이 물건에서 벗어난다. 이 비율(약 16:9)이면 높이는 저절로 절반 아래로 떨어진다. */
 #stage.look .plate.photo{max-width:min(100%, 95dvh)}
 /* 제목·판결처럼 화면을 다 쓰는 것들 */
 #stage.mid #flow{display:flex; flex-direction:column; justify-content:center}
@@ -214,17 +216,36 @@ button.opt.right{border-color:#5c7a52}
   content:''; position:absolute; inset:0; pointer-events:none;
   background:radial-gradient(60% 70% at 62% 30%, rgba(216,162,74,.10), transparent 70%);
 }
+/* 표시는 밝은 종이 위에서도 어두운 구석에서도 보여야 한다.
+   그래서 등불색 고리에 검은 테를 두르고, 심지는 밝게 둔다. */
 .hot{
-  position:absolute; width:30px; height:30px; margin:-15px 0 0 -15px;
-  border-radius:50%; border:1px solid rgba(216,162,74,.5); background:rgba(216,162,74,.06);
+  position:absolute; width:32px; height:32px; margin:-16px 0 0 -16px;
+  border-radius:50%; border:1.5px solid rgba(226,178,96,.8);
+  background:rgba(12,10,7,.34);
+  box-shadow:0 0 0 1px rgba(0,0,0,.62), 0 0 0 3px rgba(0,0,0,.18), 0 0 9px 1px rgba(216,162,74,.2);
   cursor:pointer; z-index:3; padding:0;
+  transition:transform .16s, border-color .16s;
+}
+/* 맥박은 따로 돈다 — 고리의 검은 테와 그림자가 서로 밀어내지 않도록 */
+.hot::before{
+  content:''; position:absolute; inset:-2px; border-radius:50%; pointer-events:none;
   animation:blink 3.2s ease-in-out infinite;
 }
-.hot::after{content:''; position:absolute; inset:11px; border-radius:50%; background:var(--lamp); opacity:.8}
-.hot:hover{border-color:var(--lamp); background:rgba(216,162,74,.16); transform:scale(1.14)}
-.hot.done{animation:none; border-style:dashed; border-color:rgba(255,255,255,.16); background:transparent}
-.hot.done::after{background:var(--faint); opacity:.5}
-@keyframes blink{0%,100%{box-shadow:0 0 0 0 rgba(216,162,74,.28)}50%{box-shadow:0 0 0 9px rgba(216,162,74,0)}}
+.hot::after{
+  content:''; position:absolute; inset:11px; border-radius:50%;
+  background:#ffe0ab; box-shadow:0 0 0 1.5px rgba(0,0,0,.55), 0 0 6px 1px rgba(216,162,74,.6);
+}
+.hot:hover{border-color:#ffe0ab; transform:scale(1.16)}
+.hot.done{
+  border-color:rgba(255,255,255,.22); border-style:dashed;
+  background:rgba(0,0,0,.3); box-shadow:0 0 0 1px rgba(0,0,0,.5);
+}
+.hot.done::before{animation:none}
+.hot.done::after{background:var(--faint); box-shadow:none; opacity:.55}
+@keyframes blink{
+  0%,100%{box-shadow:0 0 0 0 rgba(226,178,96,.34)}
+  50%{box-shadow:0 0 0 8px rgba(226,178,96,0)}
+}
 
 .hint{
   display:flex; justify-content:space-between; gap:12px; align-items:baseline; margin:0;
@@ -596,7 +617,7 @@ p.ask{
   100%{opacity:1; filter:brightness(1) blur(0); transform:scale(1)}
 }
 /* 관찰점은 사진이 다 뜬 뒤에 하나씩 켜진다 */
-.plate .hot{animation:blink 3.2s ease-in-out infinite, lamp .5s .95s both}
+.plate .hot{animation:lamp .5s .95s both}
 @keyframes lamp{from{opacity:0; transform:scale(.4)} to{opacity:1; transform:scale(1)}}
 
 /* 사건일지 — 종이 넘기듯 한 장씩 */
@@ -623,5 +644,64 @@ p.ask{
 @media (prefers-reduced-motion:reduce){
   .file, .file > h4, .file > div > p, .file > .stamp,
   .plate.photo, .pages .page, .page.torn{animation:none}
-  .plate .hot{animation:none}
+  .plate .hot, .hot::before{animation:none}
 }
+
+/* ── 수첩과 소리 — 화면 구석에 늘 붙어 있다 ─────────────── */
+
+#corner{
+  position:fixed; top:clamp(10px,2vh,18px); right:clamp(10px,2.5vw,20px);
+  z-index:46; display:flex; gap:7px;
+}
+body.in-scene #corner, body.slow #corner{display:none}
+#corner button{
+  font:inherit; font-family:var(--serif); cursor:pointer;
+  font-size:11.5px; letter-spacing:.16em; color:var(--faint);
+  background:rgba(11,11,13,.72); border:1px solid var(--line); border-radius:3px;
+  padding:5px 9px; line-height:1;
+  transition:color .16s, border-color .16s;
+}
+#corner button:hover{color:var(--lamp); border-color:rgba(216,162,74,.42)}
+#corner button.off{opacity:.45}
+
+/* 펼친 수첩 — 화면을 덮고, 읽고 나면 덮는다 */
+#notes{
+  position:fixed; inset:0; z-index:55; overflow-y:auto;
+  background:rgba(6,6,8,.94);
+  padding:clamp(18px,5vh,54px) clamp(16px,5vw,28px) clamp(60px,10vh,90px);
+  animation:notesIn .26s ease-out both;
+}
+@keyframes notesIn{from{opacity:0} to{opacity:1}}
+#notes .sheet{max-width:640px; margin:0 auto}
+#notes h3{
+  margin:0 0 4px; font-size:19px; font-weight:400; color:var(--paper); letter-spacing:-.01em;
+}
+#notes .who{margin:0 0 22px; font-size:12.5px; color:var(--faint); letter-spacing:.1em}
+#notes .ch{
+  margin:22px 0 7px; font-family:var(--mono); font-size:10.5px; letter-spacing:.24em;
+  color:var(--lamp); text-transform:uppercase;
+}
+#notes .ch:first-of-type{margin-top:6px}
+#notes .li{
+  margin:0 0 7px; padding-left:14px; position:relative;
+  font-size:14.5px; line-height:1.75; color:var(--dim);
+}
+#notes .li::before{
+  content:''; position:absolute; left:2px; top:.72em;
+  width:4px; height:1px; background:rgba(216,162,74,.55);
+}
+#notes .empty{color:var(--faint); font-size:14px; line-height:1.9}
+/* 덮는 단추 밑으로 글이 지나가도 읽기 어렵지 않게, 아래를 한 겹 어둡게 깐다 */
+#notes::after{
+  content:''; position:fixed; left:0; right:0; bottom:0; height:clamp(70px,12vh,110px);
+  pointer-events:none; z-index:1;
+  background:linear-gradient(transparent, rgba(6,6,8,.72) 45%, rgba(6,6,8,.95));
+}
+#notes .shut{
+  z-index:2;
+  position:fixed; left:50%; bottom:clamp(18px,4vh,34px); transform:translateX(-50%);
+  font:inherit; font-family:var(--serif); font-size:14px; cursor:pointer;
+  color:var(--paper); background:rgba(11,11,13,.92);
+  border:1px solid var(--line); border-radius:3px; padding:9px 22px;
+}
+#notes .shut:hover{color:var(--lamp); border-color:rgba(216,162,74,.42)}

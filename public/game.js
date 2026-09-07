@@ -17,6 +17,8 @@
   const tapslot = document.getElementById('tapslot'); // 계속 — 자리는 늘 비어 있어도 지킨다
   const scene = document.getElementById('scene');   // 사진이 화면을 다 덮는 몰입 화면
   const slowbar = document.getElementById('slowbar');
+  const corner = document.getElementById('corner');
+  const notesBox = document.getElementById('notes');
 
   /* ── 잡동사니 ───────────────────────────────────────── */
 
@@ -122,6 +124,142 @@
     chased: true,    // 범인을 쫓았는가, 피해자 곁에 남았는가
   };
 
+  /* ── 소리 — 회항의 밤. 파일을 받지 않고 그 자리에서 만든다 ─────── */
+
+  // 낮은 바다 소리 하나, 그 위에 아주 느린 물결. 이따금 멀리서 널판이 삐걱인다.
+  // 브라우저는 사람이 누르기 전에는 소리를 내주지 않으므로 「시작하기」에서 켠다.
+  const sound = {
+    ctx: null, gain: null, timer: 0,
+    on: (() => { try { return localStorage.getItem('mugo.sound') !== 'off'; } catch { return true; } })(),
+  };
+
+  function soundStart() {
+    if (sound.ctx || !sound.on) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try {
+      const ctx = new AC();
+      sound.ctx = ctx;
+
+      // 갈색 잡음 — 바다에 가장 가깝다
+      const len = ctx.sampleRate * 4;
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      let prev = 0;
+      for (let i = 0; i < len; i++) {
+        const white = Math.random() * 2 - 1;
+        prev = (prev + 0.02 * white) / 1.02;
+        d[i] = prev * 3.2;
+      }
+      const sea = ctx.createBufferSource();
+      sea.buffer = buf; sea.loop = true;
+
+      const low = ctx.createBiquadFilter();
+      low.type = 'lowpass'; low.frequency.value = 320; low.Q.value = 0.7;
+
+      // 아주 느린 물결. 소리가 한 자리에 멈춰 있으면 금세 거슬린다.
+      const swell = ctx.createGain();
+      swell.gain.value = 0.75;
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.055;
+      const lfoAmt = ctx.createGain();
+      lfoAmt.gain.value = 0.3;
+      lfo.connect(lfoAmt).connect(swell.gain);
+
+      const out = ctx.createGain();
+      out.gain.value = 0;
+      sound.gain = out;
+
+      sea.connect(low).connect(swell).connect(out).connect(ctx.destination);
+      sea.start(); lfo.start();
+      out.gain.linearRampToValueAtTime(0.1, ctx.currentTime + 6);   // 오프라인으로 재보면 RMS 약 -39dBFS
+
+      // 이따금 나무가 한 번 운다
+      const creak = () => {
+        if (!sound.ctx || sound.ctx.state === 'closed') return;
+        const t = ctx.currentTime;
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(78 + Math.random() * 40, t);
+        o.frequency.exponentialRampToValueAtTime(52, t + 1.6);
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass'; bp.frequency.value = 240; bp.Q.value = 5;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.03, t + 0.5);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 2.4);
+        o.connect(bp).connect(g).connect(ctx.destination);
+        o.start(t); o.stop(t + 2.5);
+        sound.timer = setTimeout(creak, 14000 + Math.random() * 26000);
+      };
+      sound.timer = setTimeout(creak, 12000);
+    } catch { sound.ctx = null; }
+  }
+
+  function soundToggle() {
+    sound.on = !sound.on;
+    try { localStorage.setItem('mugo.sound', sound.on ? 'on' : 'off'); } catch { /* 사생활 모드 */ }
+    paintSound();
+    if (!sound.on) {
+      clearTimeout(sound.timer);
+      if (sound.gain) sound.gain.gain.linearRampToValueAtTime(0, sound.ctx.currentTime + 0.6);
+      const dying = sound.ctx;
+      sound.ctx = null; sound.gain = null;
+      setTimeout(() => { try { dying && dying.close(); } catch { /* 이미 닫혔다 */ } }, 900);
+    } else {
+      soundStart();
+    }
+  }
+  function paintSound() {
+    const b = document.getElementById('sound');
+    if (!b) return;
+    b.textContent = sound.on ? '소리 켬' : '소리 끔';
+    b.classList.toggle('off', !sound.on);
+  }
+
+  /* ── 수첩 — 그동안 무엇을 보고 무엇을 골랐는지 ─────────── */
+
+  // 장마다 한 줄씩 적어 둔다. 탐정이 실제로 들고 다니는 그 수첩이다.
+  const notebook = [];
+  let chapter = '';
+  const setChapter = (t) => { chapter = t; };
+  const note = (t) => { if (t) notebook.push({ ch: chapter, t: String(t) }); };
+
+  function openNotes() {
+    if (!notesBox.hidden) return;
+    const sheet = el('div', 'sheet');
+    sheet.appendChild(el('h3', null, '수첩'));
+    sheet.appendChild(el('p', 'who', state.name ? `장부에 「${esc(state.name)}」라고 적힌 사람의 것` : '아직 이름을 적지 않았다'));
+
+    if (!notebook.length) {
+      sheet.appendChild(el('p', 'empty', '아직 적은 것이 없다. 보고 고른 것이 여기 쌓인다.'));
+    } else {
+      let last = null;
+      notebook.forEach((n) => {
+        if (n.ch && n.ch !== last) { sheet.appendChild(el('div', 'ch', esc(n.ch))); last = n.ch; }
+        sheet.appendChild(el('div', 'li', esc(n.t)));
+      });
+    }
+    notesBox.innerHTML = '';
+    notesBox.appendChild(sheet);
+    const shut = notesBox.appendChild(el('button', 'shut', '덮는다'));
+    shut.onclick = closeNotes;
+    notesBox.onclick = (e) => { if (e.target === notesBox) closeNotes(); };  // 바깥을 눌러도 덮인다
+    notesBox.hidden = false;
+    notesBox.scrollTop = 0;
+    addEventListener('keydown', notesKey, true);
+  }
+  function closeNotes() {
+    notesBox.hidden = true;
+    notesBox.innerHTML = '';
+    removeEventListener('keydown', notesKey, true);
+  }
+  // 수첩이 펼쳐져 있는 동안에는 밑의 이야기가 넘어가면 안 된다.
+  function notesKey(e) {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeNotes(); return; }
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); }
+  }
+
   function playerId() {
     try {
       let v = localStorage.getItem('mugo.player');
@@ -217,24 +355,40 @@
     }
   }
 
+  // 선택창이 서면 글 영역이 그만큼 줄어든다. 방금 읽던 줄이 그 밑에 깔려
+  // 잘려버리지 않게, 세워보고 넘치면 먼저 장을 넘긴 뒤에 다시 세운다.
+  async function footWithRoom(box) {
+    setFoot(box);
+    if (overflows()) {
+      setFoot(null);
+      await turn(false);
+      setFoot(box);
+    }
+    return box;
+  }
+
   async function choose(prompt, choices) {
-    return new Promise((resolve) => {
-      const box = setFoot(el('div'));
-      box.style.cssText = 'display:flex;flex-direction:column;gap:9px';
-      if (prompt) box.appendChild(el('p', 'ask', words(prompt)));
-      const list = box.appendChild(el('div', 'opts'));
-      choices.forEach((o, idx) => {
-        const label = typeof o === 'string' ? o : o.label;
-        const cost = (typeof o === 'object' && o.cost != null)
-          ? `<span class="cost">${o.cost ? '−' + o.cost : '즉시'}</span>` : '';
-        const b = list.appendChild(el('button', 'opt', cost + esc(label)));
-        b.disabled = typeof o === 'object' && o.disabled;
-        b.onclick = () => {
-          opts.innerHTML = '';       // 고르고 나면 남기지 않는다
-          resolve(idx);
-        };
-      });
+    let resolve;
+    const picked = new Promise((r) => { resolve = r; });
+
+    const box = el('div');
+    box.style.cssText = 'display:flex;flex-direction:column;gap:9px';
+    if (prompt) box.appendChild(el('p', 'ask', words(prompt)));
+    const list = box.appendChild(el('div', 'opts'));
+    choices.forEach((o, idx) => {
+      const label = typeof o === 'string' ? o : o.label;
+      const cost = (typeof o === 'object' && o.cost != null)
+        ? `<span class="cost">${o.cost ? '−' + o.cost : '즉시'}</span>` : '';
+      const b = list.appendChild(el('button', 'opt', cost + esc(label)));
+      b.disabled = typeof o === 'object' && o.disabled;
+      b.onclick = () => {
+        opts.innerHTML = '';       // 고르고 나면 남기지 않는다
+        resolve(idx);
+      };
     });
+
+    await footWithRoom(box);
+    return picked;
   }
 
   /* ── 관찰 (느린 시간) ───────────────────────────────── */
@@ -340,10 +494,11 @@
     addLine(el('p', 'say whisper', esc(cfg.lead)));
     let perfect = true;
     for (const q of cfg.questions) {
-      const box = setFoot(el('div'));
+      const box = el('div');
       box.style.cssText = 'display:flex;flex-direction:column;gap:9px';
       box.appendChild(el('p', 'ask', words(q.q)));
       const list = box.appendChild(el('div', 'opts'));
+      await footWithRoom(box);
       await new Promise((resolve) => {
         q.opts.forEach((label, idx) => {
           const b = list.appendChild(el('button', 'opt', esc(label)));
@@ -512,6 +667,7 @@
   }
 
   function sceneOpen(img) {
+    document.body.classList.add('in-scene');
     scene.className = 'on';
     scene.innerHTML =
       `<div class="scene-frame"><img src="${img}" alt="" decoding="async"></div>` +
@@ -533,6 +689,7 @@
     return box;
   }
   function sceneClose() {
+    document.body.classList.remove('in-scene');
     scene.className = '';
     scene.innerHTML = '';
   }
@@ -705,6 +862,12 @@
     row.style.justifyContent = 'center';
     const go = row.appendChild(el('button', 'btn', '시작하기'));
     await new Promise((r) => { go.onclick = r; });
+    // 누른 김에 소리를 연다. 브라우저는 사람이 누르기 전에는 소리를 안 내준다.
+    soundStart();
+    corner.hidden = false;
+    document.getElementById('sound').onclick = soundToggle;
+    document.getElementById('book').onclick = openNotes;
+    paintSound();
     stage.classList.remove('mid');
   }
 
@@ -751,9 +914,11 @@
     await say([{ w: L.note }]);
     await say(S.act0.lead);
 
+    setChapter('오는 길');
     for (const b of S.act0.beats) {
       const i = await choose(b.ask, b.opts.map((o) => o.label));
       state.traces.push(b.opts[i].trace);
+      note(b.opts[i].label);
       await say([{ s: b.opts[i].out }]);
     }
     await say(S.act0.arrive);
@@ -761,9 +926,12 @@
 
   /* 1장 — 소장의 코를 납작하게 */
   async function act1() {
+    setChapter('제1장 · 명함을 두 번 뒤집는 사람');
     await say(S.act1.open);
     const found = await observe(S.act1.observe);
+    found.forEach((f) => note(`${f.tag} — ${f.text}`));
     const perfect = await deduce(S.act1.deduce);
+    note(perfect ? '세 가지를 다 맞췄다. 켈러가 십오 분을 내줬다.' : '헛짚은 데가 있었다. 그래도 십오 분은 받았다.');
 
     const blows = found.map((f) => S.act1.blows[f.id]).filter(Boolean)
       .map((s) => ({ who: '나', s }));
@@ -774,10 +942,13 @@
 
   /* 2장 — 앞사람을 판결한다 */
   async function act2(casePromise) {
+    setChapter('제2장 · 이름을 대지 않는 남자');
     await say(S.act2.open);
 
     const c = await casePromise;
     state.caseData = c;
+    note(`유치장의 남자 — ${c.name}. ${c.caught === 'house' ? '저택에서 현장 검거' : '부두 널판 끝에서 검거'}.`);
+    if (c.clues && c.clues.length) note('사건일지에 찢겨 나간 자리가 있다.');
 
     const E = S.act2.evidence;
     const torn = (c.clues && c.clues.length) ? c.clues : [];
@@ -800,7 +971,7 @@
     }
 
     await say(S.act2.after);
-    await observe(S.act2.observe);
+    (await observe(S.act2.observe)).forEach((f) => note(`${f.tag} — ${f.text}`));
 
     // 사흘 동안 입을 안 열던 사람이, 먼저 당신을 읽는다.
     const R = S.act2.read;
@@ -827,6 +998,7 @@
       await say([{ who: '나', s: qs[i] }], { silent: true });
       await wait(900);
       const a = (c.answers[i] || '').trim();
+      note(`「${qs[i]}」 — ${a || '대답하지 않았다'}`);
       if (a) await say([{ who: '남자', s: a }], { silent: true });
       else addLine(el('p', 'say whisper', words(S.act2.silent)));
       await wait(700);
@@ -835,6 +1007,7 @@
     await say(S.act2.askVerdict);
     const verdict = await verdictForm();
     state.myVerdict = verdict;
+    note(`내가 내린 판결 — ${verdict.v === 'guilty' ? '유죄' : '무죄'}. 「${verdict.reason}」`);
 
     // 판결을 보낸다. 앞사람에게 메일이 나가는 지점.
     api('/api/verdict', {
@@ -885,14 +1058,17 @@
 
   /* 3장 — 해 지기 전에 저택을 한 바퀴. 여기서 적은 것이 수첩의 전부다. */
   async function recon() {
+    setChapter('제3장 · 언덕 위의 집');
     await say(S.recon.open);
     const found = await observe(S.recon.observe);
     state.pages = found.map((f) => ({ id: f.id, cat: f.cat, text: f.page }));
+    state.pages.forEach((pg) => note(pg.text));
     await say(state.pages.length >= 3 ? S.recon.close : S.recon.lazy);
   }
 
   /* 4장 — 비명. 들어가는 길은 저녁에 적어둔 만큼만 안다. */
   async function act3() {
+    setChapter('제4장 · 자정을 넘겨서');
     await say(S.act3.open);
     const known = new Set(state.pages.map((p) => p.id));
     const idx = await choose(S.act3.ask, S.act3.ways.map((w) => ({
@@ -901,11 +1077,13 @@
     })));
     const way = S.act3.ways[idx];
     state.knewWay = known.has(way.need);
+    note(`들어간 길 — ${way.label}${state.knewWay ? ' (저녁에 적어둔 길)' : ''}`);
     await say([{ s: way.out }, state.knewWay ? { b: S.act3.knew } : { w: S.act3.blind }].concat(S.act3.run));
   }
 
   /* 5장 — 살릴 수 있을 것 같다. 아니다. */
   async function act4() {
+    setChapter('제5장 · 손');
     await say(S.act4.open);
 
     // 저녁에 길을 적어둔 사람은 한 박자 일찍 닿는다. 그 한 박자만큼 더 희망을 본다.
@@ -914,6 +1092,7 @@
 
     for (const r of rounds) {
       const pick = await choose(r.ask, r.opts.map((o) => o.label));
+      note(r.opts[pick].label);
       await say([{ s: r.opts[pick].out }].concat(r.after));
     }
 
@@ -924,11 +1103,13 @@
     await say(F.lead, { silent: true });
     const pick = await choose(F.ask, [F.chase.label, F.stay.label]);
     state.chased = pick === 0;
+    note(state.chased ? '손을 떼고 쫓았다.' : '손을 떼지 않고 곁에 남았다.');
     await say(state.chased ? F.chase.out : F.stay.out);
   }
 
   /* 6장 — 서른 걸음 뒤. 갈림길마다 사진이 화면을 덮는다. */
   async function act5() {
+    setChapter('제6장 · 서른 걸음 뒤');
     await say(S.act5.open);
     await turn(false);          // 첫 사진이 글자를 밀어내며 튀어나오지 않도록
     for (const j of S.act5.junctions) {
@@ -936,6 +1117,7 @@
       slow(true);
       const pick = await sceneTimed(words(j.cue), j.opts, 9);
       slow(false);
+      note(`${j.where} — ${pick === j.right ? '길을 맞췄다' : pick < 0 ? '머뭇거렸다' : '헛짚었다'}`);
       if (pick === j.right) await sceneSay([{ s: j.win }]);
       else await sceneSay([{ s: pick < 0 ? S.act5.slow : j.lose }]);
       sceneClose();
@@ -944,6 +1126,7 @@
 
   /* 7장 — 어둠. 여기서는 화면을 통째로 쓴다. */
   async function act6() {
+    setChapter('제7장 · 널판 끝');
     await say(S.act6.open);
     await turn(false);          // 부두는 눌러서 들어간다
 
@@ -957,7 +1140,7 @@
       const last = i === S.act6.beats.length - 1;
       const pick = await sceneBeat(b, 7);
       const line = pick === b.right ? { b: b.win } : { s: b.lose };
-      if (pick !== b.right) state.hits.push(b.hurt);
+      if (pick !== b.right) { state.hits.push(b.hurt); note(b.hurt); }
       // 마지막 합은 흉기가 손에 들어온 것까지 한 화면에 놓고, 누르지 않아도 넘어간다.
       if (last) await sceneSay([line].concat(S.act6.won), { auto: 1600 });
       else await sceneSay([line]);
@@ -976,6 +1159,7 @@
 
   /* 8장 — 체포. 그리고 수첩. */
   async function act7() {
+    setChapter('제8장 · 체포');
     // 챕터 제목이 화면을 비우니, 사진은 그 다음에 얹는다.
     const opening = state.chased ? S.act7.openChase : S.act7.openStay;
     await say(opening.slice(0, 1));
@@ -1012,11 +1196,14 @@
     opts.innerHTML = '';
 
     state.torn = state.pages.filter((pg) => tear.has(pg));
+    state.torn.forEach((pg) => note(`찢어냈다 — ${pg.text}`));
+    if (!state.torn.length) note('한 장도 찢지 않고 그대로 넘겼다.');
     await say(state.torn.length ? S.act7.found : S.act7.kept);
   }
 
   /* 8장 — 내 차례 */
   async function act8() {
+    setChapter('제9장 · 창이 없는 방');
     await say(S.act8.open);
     const answers = [];
     for (let i = 0; i < 3; i++) {
@@ -1039,6 +1226,7 @@
       });
       const said = input.value.trim();
       answers.push(said);
+      note(`「${threeQs(S.act8, state.chased ? 'dock' : 'house')[i]}」 — ${said || '……'}`);
       opts.innerHTML = '';
       addLine(el('div', 'said s-me', `<span class="who">나</span>${esc(said || '……')}`));
     }
