@@ -124,99 +124,6 @@
     chased: true,    // 범인을 쫓았는가, 피해자 곁에 남았는가
   };
 
-  /* ── 소리 — 회항의 밤. 파일을 받지 않고 그 자리에서 만든다 ─────── */
-
-  // 낮은 바다 소리 하나, 그 위에 아주 느린 물결. 이따금 멀리서 널판이 삐걱인다.
-  // 브라우저는 사람이 누르기 전에는 소리를 내주지 않으므로 「시작하기」에서 켠다.
-  const sound = {
-    ctx: null, gain: null, timer: 0,
-    on: (() => { try { return localStorage.getItem('mugo.sound') !== 'off'; } catch { return true; } })(),
-  };
-
-  function soundStart() {
-    if (sound.ctx || !sound.on) return;
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
-    try {
-      const ctx = new AC();
-      sound.ctx = ctx;
-
-      // 갈색 잡음 — 바다에 가장 가깝다
-      const len = ctx.sampleRate * 4;
-      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-      const d = buf.getChannelData(0);
-      let prev = 0;
-      for (let i = 0; i < len; i++) {
-        const white = Math.random() * 2 - 1;
-        prev = (prev + 0.02 * white) / 1.02;
-        d[i] = prev * 3.2;
-      }
-      const sea = ctx.createBufferSource();
-      sea.buffer = buf; sea.loop = true;
-
-      const low = ctx.createBiquadFilter();
-      low.type = 'lowpass'; low.frequency.value = 320; low.Q.value = 0.7;
-
-      // 아주 느린 물결. 소리가 한 자리에 멈춰 있으면 금세 거슬린다.
-      const swell = ctx.createGain();
-      swell.gain.value = 0.75;
-      const lfo = ctx.createOscillator();
-      lfo.frequency.value = 0.055;
-      const lfoAmt = ctx.createGain();
-      lfoAmt.gain.value = 0.3;
-      lfo.connect(lfoAmt).connect(swell.gain);
-
-      const out = ctx.createGain();
-      out.gain.value = 0;
-      sound.gain = out;
-
-      sea.connect(low).connect(swell).connect(out).connect(ctx.destination);
-      sea.start(); lfo.start();
-      out.gain.linearRampToValueAtTime(0.1, ctx.currentTime + 6);   // 오프라인으로 재보면 RMS 약 -39dBFS
-
-      // 이따금 나무가 한 번 운다
-      const creak = () => {
-        if (!sound.ctx || sound.ctx.state === 'closed') return;
-        const t = ctx.currentTime;
-        const o = ctx.createOscillator();
-        o.type = 'sawtooth';
-        o.frequency.setValueAtTime(78 + Math.random() * 40, t);
-        o.frequency.exponentialRampToValueAtTime(52, t + 1.6);
-        const bp = ctx.createBiquadFilter();
-        bp.type = 'bandpass'; bp.frequency.value = 240; bp.Q.value = 5;
-        const g = ctx.createGain();
-        g.gain.setValueAtTime(0, t);
-        g.gain.linearRampToValueAtTime(0.03, t + 0.5);
-        g.gain.exponentialRampToValueAtTime(0.0001, t + 2.4);
-        o.connect(bp).connect(g).connect(ctx.destination);
-        o.start(t); o.stop(t + 2.5);
-        sound.timer = setTimeout(creak, 14000 + Math.random() * 26000);
-      };
-      sound.timer = setTimeout(creak, 12000);
-    } catch { sound.ctx = null; }
-  }
-
-  function soundToggle() {
-    sound.on = !sound.on;
-    try { localStorage.setItem('mugo.sound', sound.on ? 'on' : 'off'); } catch { /* 사생활 모드 */ }
-    paintSound();
-    if (!sound.on) {
-      clearTimeout(sound.timer);
-      if (sound.gain) sound.gain.gain.linearRampToValueAtTime(0, sound.ctx.currentTime + 0.6);
-      const dying = sound.ctx;
-      sound.ctx = null; sound.gain = null;
-      setTimeout(() => { try { dying && dying.close(); } catch { /* 이미 닫혔다 */ } }, 900);
-    } else {
-      soundStart();
-    }
-  }
-  function paintSound() {
-    const b = document.getElementById('sound');
-    if (!b) return;
-    b.textContent = sound.on ? '소리 켬' : '소리 끔';
-    b.classList.toggle('off', !sound.on);
-  }
-
   /* ── 수첩 — 그동안 무엇을 보고 무엇을 골랐는지 ─────────── */
 
   // 장마다 한 줄씩 적어 둔다. 탐정이 실제로 들고 다니는 그 수첩이다.
@@ -862,12 +769,8 @@
     row.style.justifyContent = 'center';
     const go = row.appendChild(el('button', 'btn', '시작하기'));
     await new Promise((r) => { go.onclick = r; });
-    // 누른 김에 소리를 연다. 브라우저는 사람이 누르기 전에는 소리를 안 내준다.
-    soundStart();
     corner.hidden = false;
-    document.getElementById('sound').onclick = soundToggle;
     document.getElementById('book').onclick = openNotes;
-    paintSound();
     stage.classList.remove('mid');
   }
 

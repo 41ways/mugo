@@ -647,7 +647,7 @@ p.ask{
   .plate .hot, .hot::before{animation:none}
 }
 
-/* ── 수첩과 소리 — 화면 구석에 늘 붙어 있다 ─────────────── */
+/* ── 수첩 — 화면 구석에 늘 붙어 있다 ─────────────────────── */
 
 #corner{
   position:fixed; top:clamp(10px,2vh,18px); right:clamp(10px,2.5vw,20px);
@@ -662,7 +662,6 @@ body.in-scene #corner, body.slow #corner{display:none}
   transition:color .16s, border-color .16s;
 }
 #corner button:hover{color:var(--lamp); border-color:rgba(216,162,74,.42)}
-#corner button.off{opacity:.45}
 
 /* 펼친 수첩 — 화면을 덮고, 읽고 나면 덮는다 */
 #notes{
