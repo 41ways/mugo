@@ -1,4 +1,4 @@
-# 🕯 무고 — 誣告 · 無辜
+# 🕵️ 무고 — 誣告 · 無辜
 
 ![종류](https://img.shields.io/badge/%EC%A2%85%EB%A5%98-%ED%83%90%EC%A0%95-1c1f2b?style=flat-square) ![인원](https://img.shields.io/badge/%EC%9D%B8%EC%9B%90-1%EC%9D%B8-555?style=flat-square) [![플레이](https://img.shields.io/badge/%ED%94%8C%EB%A0%88%EC%9D%B4-mug0.onrender.com-d8332b?style=flat-square)](https://mug0.onrender.com/) [![허브](https://img.shields.io/badge/%ED%97%88%EB%B8%8C-41ways%EC%9D%98%20%EB%A0%88%EB%93%9C%EB%B2%84%ED%8A%BC-b4571f?style=flat-square)](https://41ways.github.io/norara/)
 
