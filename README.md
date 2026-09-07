@@ -1,4 +1,6 @@
-# 무고 — 誣告 · 無辜
+# 🕯 무고 — 誣告 · 無辜
+
+![종류](https://img.shields.io/badge/%EC%A2%85%EB%A5%98-%ED%83%90%EC%A0%95-1c1f2b?style=flat-square) ![인원](https://img.shields.io/badge/%EC%9D%B8%EC%9B%90-1%EC%9D%B8-555?style=flat-square) [![플레이](https://img.shields.io/badge/%ED%94%8C%EB%A0%88%EC%9D%B4-mug0.onrender.com-d8332b?style=flat-square)](https://mug0.onrender.com/) [![허브](https://img.shields.io/badge/%ED%97%88%EB%B8%8C-41ways%EC%9D%98%20%EB%A0%88%EB%93%9C%EB%B2%84%ED%8A%BC-b4571f?style=flat-square)](https://41ways.github.io/norara/)
 
 안개 낀 항구 마을 회항. 연쇄살인 용의자를 심문하고, 당신의 한마디로 그 사람의 생사가 갈린다.
 
@@ -7,6 +9,20 @@
 그리고 그날 밤, 같은 일이 당신에게 일어난다.
 
 한 판 20~30분. 한 사람이 한 번씩 심문하고, 한 번씩 심문당한다.
+
+## 한눈에
+
+| | |
+|---|---|
+| **종류** | 탐정 · 싱글 · 이어달리기 |
+| **인원** | 1인 (앞사람의 진술을 받아 뒷사람에게 넘김) |
+| **시간** | 한 판 20~30분 |
+| **플레이** | **https://mug0.onrender.com/** |
+| **로컬 실행** | `npm install && npm start` → http://localhost:8787 |
+| **한 줄 규칙** | 붙잡힌 용의자를 심문하고 유죄인지 무죄인지 한마디로 정한다 |
+| **허브** | https://41ways.github.io/norara/ |
+
+**목차** — [실행](#실행) · [이어달리기가 성립하려면](#이어달리기가-성립하려면) · [조서를 누구에게 주는가](#조서를-누구에게-주는가) · [개인정보](#개인정보) · [구조](#구조) · [API](#api)
 
 ## 실행
 
