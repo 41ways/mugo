@@ -6,29 +6,60 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const PORT = 8899;
+// 포트를 고정하면, 그 자리에 남의 서버가 떠 있을 때 거기에 그대로 붙어 버린다.
+// (예전에 8899 에 남아 있던 정적 서버에 붙어서 HTML 을 JSON 으로 읽으려다 죽었다)
+// OS 에서 비어 있는 포트를 받아 쓰고, 우리 서버가 실제로 떴는지도 확인한다.
+const net = require('node:net');
+function freePort() {
+  return new Promise((res, rej) => {
+    const s = net.createServer();
+    s.on('error', rej);
+    s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => res(p)); });
+  });
+}
+
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mugo-flow-'));
-const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir };
-delete env.DATABASE_URL;
-delete env.SMTP_URL;
+let srv = null, log = '', base = '';
 
-const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env, stdio: ['ignore', 'pipe', 'pipe'] });
-let log = '';
-srv.stdout.on('data', (d) => { log += d; });
-srv.stderr.on('data', (d) => { log += d; });
+async function startServer() {
+  const port = Number(process.env.PORT) || (await freePort());
+  const env = { ...process.env, PORT: String(port), DATA_DIR: dir };
+  delete env.DATABASE_URL;
+  delete env.SMTP_URL;
 
-const base = `http://127.0.0.1:${PORT}`;
+  srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+  srv.stdout.on('data', (d) => { log += d; });
+  srv.stderr.on('data', (d) => { log += d; });
+  base = `http://127.0.0.1:${port}`;
+
+  // 우리 서버가 자기 입으로 떴다고 말할 때까지 기다린다 — 남의 서버 응답으로는 통과하지 않는다
+  await new Promise((resolve, reject) => {
+    let settled = false;
+    const tick = setInterval(() => {
+      if (settled) return;
+      if (log.includes('무고 —')) { settled = true; clearInterval(tick); resolve(); }
+    }, 50);
+    srv.on('exit', (c) => {
+      if (settled) return;
+      settled = true; clearInterval(tick);
+      reject(new Error(`서버가 뜨지 못했습니다 (종료 ${c})\n${log}`));
+    });
+    setTimeout(() => {
+      if (settled) return;
+      settled = true; clearInterval(tick);
+      reject(new Error(`서버가 뜨는 데 너무 오래 걸립니다\n${log}`));
+    }, 15000);
+  });
+}
 const post = (p, b) => fetch(base + p, {
   method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b),
 }).then((r) => r.json());
 const get = (p) => fetch(base + p).then(async (r) => [r.status, await r.json()]);
 
-const done = (code) => { srv.kill(); fs.rmSync(dir, { recursive: true, force: true }); process.exit(code); };
+const done = (code) => { if (srv) srv.kill(); fs.rmSync(dir, { recursive: true, force: true }); process.exit(code); };
 
 (async () => {
-  for (let i = 0; i < 60; i++) {
-    try { await fetch(base + '/healthz'); break; } catch { await new Promise((r) => setTimeout(r, 100)); }
-  }
+  await startServer();
 
   // 대기열이 비면 미리 써둔 조서가 나온다
   const first = await post('/api/case', { player: 'A' });
