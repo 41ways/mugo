@@ -170,7 +170,7 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
   transition:filter .16s, transform .16s;
 }
 .tap::after{content:'▸'; font-size:15px; animation:nudge 1.6s ease-in-out infinite}
-.tap:hover{filter:brightness(1.12); transform:translateX(2px)}
+@media (hover:hover){.tap:hover{filter:brightness(1.12); transform:translateX(2px)}}
 @keyframes beckon{
   0%,100%{box-shadow:0 0 0 0 rgba(216,162,74,.42)}
   60%{box-shadow:0 0 0 10px rgba(216,162,74,0)}
@@ -186,7 +186,7 @@ button.opt{
   border-radius:3px; padding:11px 16px; font-size:15.5px; line-height:1.55;
   transition:border-color .18s, background .18s, transform .18s;
 }
-button.opt:hover:not(:disabled){border-color:var(--lamp); background:rgba(216,162,74,.06); transform:translateX(3px)}
+@media (hover:hover){button.opt:hover:not(:disabled){border-color:var(--lamp); background:rgba(216,162,74,.06); transform:translateX(3px)}}
 button.opt:disabled{opacity:.35; cursor:default}
 button.opt .cost{float:right; font-family:var(--mono); font-size:11px; color:var(--faint); letter-spacing:.1em}
 button.opt.picked{border-color:var(--lamp); background:rgba(216,162,74,.09)}
@@ -235,7 +235,7 @@ button.opt.right{border-color:#5c7a52}
   content:''; position:absolute; inset:11px; border-radius:50%;
   background:#ffe0ab; box-shadow:0 0 0 1.5px rgba(0,0,0,.55), 0 0 6px 1px rgba(216,162,74,.6);
 }
-.hot:hover{border-color:#ffe0ab; transform:scale(1.16)}
+@media (hover:hover){.hot:hover{border-color:#ffe0ab; transform:scale(1.16)}}
 .hot.done{
   border-color:rgba(255,255,255,.22); border-style:dashed;
   background:rgba(0,0,0,.3); box-shadow:0 0 0 1px rgba(0,0,0,.5);
