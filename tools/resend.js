@@ -2,8 +2,9 @@
 
 // 못 나간 판결 통지를 다시 보낸다.
 //
-// 판결은 났는데 주소가 아직 남아 있다면, 그건 발송이 실패했다는 뜻이다
-// (성공했으면 server.js 가 그 자리에서 주소를 지운다).
+// 판결이 두 번 났는데 주소가 아직 남아 있다면, 마지막 통지가 실패했다는 뜻이다
+// (성공했으면 server.js 가 그 자리에서 주소를 지운다). 판결이 하나뿐인 조서는
+// 둘째 통지를 위해 주소를 일부러 남겨 두므로 여기서 건드리지 않는다.
 //
 //   DATABASE_URL=... RESEND_API_KEY=... MAIL_FROM='회항 경찰서 <...>' PUBLIC_URL=https://... \
 //     node tools/resend.js
@@ -14,7 +15,7 @@
 //   node tools/resend.js          # 누가 밀려 있는지만 본다
 //   node tools/resend.js --send   # 실제로 보낸다
 
-const { openStore } = require('../store.js');
+const { openStore, listOf, MAX_MAILS } = require('../store.js');
 const mailer = require('../mailer.js');
 
 const SEND = process.argv.includes('--send');
@@ -35,7 +36,10 @@ const mask = (e) => {
 
 (async () => {
   const store = await openStore();
-  const rows = await store.undelivered();
+  // 판결이 하나뿐인 조서는 첫 통지가 나갔어도 둘째 통지를 위해 주소를 남겨 둔다.
+  // 그래서 "주소가 남았다 = 못 나갔다" 는 마지막(둘째) 통지에서만 맞다. 그것만 다시 보낸다.
+  // (첫 통지가 실패한 건은 가려낼 수 없으니 둘째 판결이 나올 때 함께 나간다.)
+  const rows = (await store.undelivered()).filter((r) => listOf(r.verdicts).length >= MAX_MAILS);
   const now = Date.now();
 
   if (!rows.length) {
@@ -67,7 +71,7 @@ const mask = (e) => {
   console.log('');
   let ok = 0, fail = 0;
   for (const row of rows) {
-    const sent = await mailer.sendVerdict(row);
+    const sent = await mailer.sendVerdict(row, { nth: listOf(row.verdicts).length });
     if (sent) { await store.clearEmail(row.id); ok += 1; }
     else fail += 1;
     // Resend 무료 등급은 초당 2통이다. 한 박자 쉰다.
