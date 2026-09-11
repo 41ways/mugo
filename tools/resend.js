@@ -71,7 +71,8 @@ const mask = (e) => {
   console.log('');
   let ok = 0, fail = 0;
   for (const row of rows) {
-    const sent = await mailer.sendVerdict(row, { nth: listOf(row.verdicts).length });
+    // 다시 보내는 건 마지막(둘째) 통지다. 판결이 셋 이상 쌓였어도 둘째 판결 기준으로 보낸다.
+    const sent = await mailer.sendVerdict(row, { nth: MAX_MAILS });
     if (sent) { await store.clearEmail(row.id); ok += 1; }
     else fail += 1;
     // Resend 무료 등급은 초당 2통이다. 한 박자 쉰다.
