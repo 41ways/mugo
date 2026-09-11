@@ -75,7 +75,7 @@ function tooFast(ip, perMin) {
   if (now - row.t > 60_000) { row.t = now; row.n = 0; }
   row.n += 1;
   hits.set(ip, row);
-  if (hits.size > 5000) hits.clear();
+  if (hits.size > 5000) for (const [k, v] of hits) if (now - v.t > 60_000) hits.delete(k);
   return row.n > perMin;
 }
 
@@ -121,8 +121,10 @@ async function apiVerdict(req, res) {
 
   // 한 조서는 여러 번 읽힐 수 있다. 다만 통지는 앞의 두 번까지만 나간다 —
   // 그 뒤에는 주소가 이미 지워져 있어서 보낼 곳이 없다.
+  // 순번(seen)은 판결을 기록한 UPDATE 가 한 번에 매기므로 동시에 들어와도 겹치지 않는다.
+  // 주소를 지우는 건 발송 뒤라서, 순번으로 막지 않으면 동시에 들어온 판결마다 메일이 나간다.
   const seen = listOf(row.verdicts).length;
-  const delivered = await mailer.sendVerdict(row, { nth: seen });
+  const delivered = row.email && seen <= MAX_MAILS ? await mailer.sendVerdict(row, { nth: seen }) : false;
 
   // 주소는 마지막 통지가 실제로 나간 다음에 지운다. 실패했는데 지우면
   // 다시 보낼 길이 영영 없어지고, 첫 통에 지우면 둘째 통을 못 보낸다.
@@ -209,7 +211,17 @@ function serveStatic(req, res, urlPath) {
 
 /* ─────────────────────────── 라우팅 ─────────────────────────── */
 
-const server = http.createServer(async (req, res) => {
+// 처리 중에 던져진 오류가 밖으로 새면(예: '//' 같은 주소로 new URL 이 던짐) 처리되지 않은
+// Promise 거절이 되어 Node 가 프로세스를 통째로 내린다. 파일 저장이면 진술까지 날아간다.
+const server = http.createServer((req, res) => {
+  route(req, res).catch((err) => {
+    console.error('[http]', req.url, err.message);
+    if (!res.headersSent) res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
+    res.end('잘못된 요청');
+  });
+});
+
+async function route(req, res) {
   const url = new URL(req.url, 'http://x');
   const p = url.pathname;
 
@@ -237,13 +249,14 @@ const server = http.createServer(async (req, res) => {
       return json(res, 404, { error: '없다' });
     } catch (err) {
       console.error('[api]', p, err.message);
-      return json(res, 400, { error: err.message });
+      const known = err.message === 'too large' || err.message === 'bad json';
+      return json(res, 400, { error: known ? err.message : '처리하지 못했다' });
     }
   }
 
   if (req.method !== 'GET') { res.writeHead(405).end(); return; }
   serveStatic(req, res, p);
-});
+}
 
 openStore().then((s) => {
   store = s;
