@@ -654,6 +654,7 @@ p.ask{
   z-index:46; display:flex; gap:7px;
 }
 body.in-scene #corner, body.slow #corner{display:none}
+#corner[hidden]{display:none}   /* display:flex 가 hidden 을 이겨 제목·조회 화면에도 수첩 버튼이 떠 있었다 */
 #corner button{
   font:inherit; font-family:var(--serif); cursor:pointer;
   font-size:11.5px; letter-spacing:.16em; color:var(--faint);

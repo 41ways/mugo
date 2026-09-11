@@ -190,6 +190,7 @@
       }
       const tapEl = setTap(el('div', 'tap', '계속'));
       const go = (e) => {
+        if (!notesBox.hidden) return;   // 수첩을 펼친 채 누른 Enter·스페이스로 밑의 이야기가 넘어가지 않게
         if (e.type === 'keydown') {
           if (e.key !== 'Enter' && e.key !== ' ') return;
           e.preventDefault();
@@ -322,6 +323,7 @@
         (sp.more ? `<p class="more">${esc(sp.more)}</p>` : '') +
         `<div class="close">닫기</div>`));
       const key = (e) => {
+        if (!notesBox.hidden) return;
         if (e.key !== 'Escape' && e.key !== 'Enter' && e.key !== ' ') return;
         e.preventDefault(); done();
       };
@@ -644,6 +646,7 @@
         resolve();
       };
       const onGo = (e) => {
+        if (!notesBox.hidden) return;
         if (e.type === 'keydown') {
           if (e.key !== 'Enter' && e.key !== ' ') return;
           e.preventDefault();
@@ -797,7 +800,7 @@
     await new Promise((r) => {
       const go = () => { if (input.value.trim()) r(); };
       ok.onclick = go;
-      input.onkeydown = (e) => { if (e.key === 'Enter') go(); };
+      input.onkeydown = (e) => { if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) go(); };   // 한글 조합을 끝내는 Enter 는 흘려보낸다
     });
     state.name = input.value.trim().slice(0, 24);
     opts.innerHTML = '';
@@ -1125,7 +1128,7 @@
       input.focus();
       await new Promise((r) => {
         ok.onclick = r;
-        input.onkeydown = (e) => { if (e.key === 'Enter') r(); };
+        input.onkeydown = (e) => { if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) r(); };   // 한글 조합을 끝내는 Enter 는 흘려보낸다
       });
       const said = input.value.trim();
       answers.push(said);
@@ -1165,7 +1168,7 @@
         }
         r(v);
       };
-      input.onkeydown = (e) => { if (e.key === 'Enter') ok.onclick(); };
+      input.onkeydown = (e) => { if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) ok.onclick(); };
     });
     opts.innerHTML = '';
 
@@ -1175,21 +1178,26 @@
     await wait(1800);
 
     let res = null;
-    try {
-      res = await api('/api/statement', {
-        player: state.player, name: state.name, answers, clues: tornSummary(state.torn),
-        caught: state.chased ? 'dock' : 'house', email,
-      });
-    } catch (e) {
-      // 서버가 죽어도 이야기는 끝까지 가되, 무슨 일이 있었는지는 남긴다.
-      console.error('[진술 제출 실패]', e);
+    const body = {
+      player: state.player, name: state.name, answers, clues: tornSummary(state.torn),
+      caught: state.chased ? 'dock' : 'house', email,
+    };
+    // 한 번 실패하면(서버가 막 깨어나는 중 등) 잠깐 뒤에 한 번 더 보낸다
+    for (let tryN = 0; tryN < 2 && !res; tryN++) {
+      try { res = await api('/api/statement', body); }
+      catch (e) {
+        console.error('[진술 제출 실패]', e);
+        if (tryN === 0) await new Promise((r) => setTimeout(r, 2500));
+      }
     }
 
     clear();
     hood.remove();
 
     await say(S.act9.sealed.concat(
-      res ? [{ w: `대기열 ${res.queued}번. 앞에 ${Math.max(0, res.queued - 1)}명이 더 기다리고 있다.` }] : [],
+      res ? [{ w: `대기열 ${res.queued}번. 앞에 ${Math.max(0, res.queued - 1)}명이 더 기다리고 있다.` }]
+          // 예전엔 실패해도 아무 말이 없어서, 주소를 적은 사람은 판결 메일을 하염없이 기다렸다
+          : [{ s: '진술서가 경찰서에 닿지 못했다. 이번 진술은 대기열에 오르지 않았고, 판결 통지도 가지 않는다.' }],
       email && res ? [{ s: res.mail
         ? '주소는 받아 적혔다. 판결이 나오면 한 통이 간다.'
         : '주소는 받아 적혔다. 다만 이 마을의 우편은 아직 열리지 않았다 — 아래 링크로 직접 확인하시오.' }] : [],
