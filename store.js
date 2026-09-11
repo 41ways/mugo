@@ -38,6 +38,13 @@ const liveHolds = (row, now, me) => listOf(row.holds).filter((h) =>
   now - Number(h.at || 0) < CLAIM_TTL_MS &&
   !judgedBy(row, h.by));
 
+// 판결 자격을 가리려고 손자국은 넉넉히(6시간) 남겨 둔다. 자리 계산(taken)은 위의 liveHolds 로만 한다.
+// (TTL 로 지워 버리면 30분 넘게 심문한 사람의 판결이 거절된다)
+const HOLD_KEEP_MS = 6 * 60 * 60 * 1000;
+const keptHolds = (row, now, me) => listOf(row.holds).filter((h) =>
+  h && h.by && h.by !== me && now - Number(h.at || 0) < HOLD_KEEP_MS && !judgedBy(row, h.by));
+const heldBy = (row, player) => listOf(row.holds).some((h) => h && h.by === player);
+
 // 몇 자리가 찼는가 — 판결한 사람 + 지금 붙들고 있는 사람.
 const taken = (row, now, me) =>
   (row.judged_count != null ? row.judged_count : (row.judged_at ? 1 : 0)) + liveHolds(row, now, me).length;
@@ -105,7 +112,7 @@ class FileStore {
     const now = Date.now();
     const pick = choose(this.rows, now, me);
     if (!pick) return null;
-    pick.holds = liveHolds(pick, now, me).concat([{ by: me, at: now }]);
+    pick.holds = keptHolds(pick, now, me).concat([{ by: me, at: now }]);
     await this.flush();
     return pick;
   }
@@ -122,6 +129,8 @@ class FileStore {
     const row = this.rows.find((r) => r.id === id);
     if (!row) return null;
     if (patch.judged_by && patch.judged_by !== 'anon' && judgedBy(row, patch.judged_by)) return null;
+    // 이 조서를 받아 간 사람만 판결한다 — 아무 조서 번호로나 판결을 쏟아부을 수 없게
+    if (!heldBy(row, patch.judged_by || '')) return null;
     const seen = row.judged_count != null ? row.judged_count : (row.judged_at ? 1 : 0);
     const entry = verdictEntry(patch);
     row.verdicts = (row.verdicts || []).concat([entry]);
@@ -247,7 +256,7 @@ class PgStore {
 
       const r = choose(rows, now, me);
       if (r) {
-        const next = liveHolds(r, now, me).concat([{ by: me, at: now }]);
+        const next = keptHolds(r, now, me).concat([{ by: me, at: now }]);
         const upd = await client.query(
           `UPDATE statements SET holds = $2::jsonb WHERE id = $1 RETURNING *`,
           [r.id, JSON.stringify(next)]);
@@ -290,6 +299,7 @@ class PgStore {
               judged_at    = COALESCE(judged_at, $6)
         WHERE id = $1
           AND ($7 = 'anon' OR $7 = '' OR NOT (verdicts @> $8::jsonb))   -- 같은 사람이 두 번 판결하지 못한다
+          AND holds @> $8::jsonb                                        -- 이 조서를 받아 간 사람만
         RETURNING *`,
       [id, JSON.stringify([entry]), patch.verdict, patch.reason,
        patch.judge_name, entry.at, entry.by, JSON.stringify([{ by: entry.by }])]);

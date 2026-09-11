@@ -52,6 +52,9 @@ const row = (player, name) => ({
   assert.equal(second.verdicts[1].verdict, 'innocent', '갈린 판결도 그대로');
   assert.equal(second.verdict, 'guilty', '칸에 남는 것은 첫 판결');
 
+  // 조서를 받아 가지 않은 사람의 판결은 받지 않는다 — 아무 조서 번호로나 판결을 쏟아부을 수 없게
+  assert.equal(await s.judge(a.id, { verdict: 'guilty', judged_by: 'p7' }), null, '받아 가지 않은 판결은 거절');
+  (await s.byId(a.id)).holds.push({ by: 'p7', at: Date.now() });   // p7 이 이 조서를 받아 갔다
   assert.ok(await s.judge(a.id, { verdict: 'guilty', judged_by: 'p7' }), '세 번째 판결도 받는다 — 상한은 없다');
 
   // 판결하면 손을 놓는다. b 는 판결 하나(p1) + 아직 붙들고 있는 사람 하나(p5) 로 꽉 차 있다

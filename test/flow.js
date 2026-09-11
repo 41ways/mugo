@@ -115,9 +115,16 @@ const done = (code) => { if (srv) srv.kill(); fs.rmSync(dir, { recursive: true, 
   assert.equal(v2.ok, true);
   assert.equal(v2.nth, 2, '두 번째 통지');
 
-  // 세 번째 판결도 받는다. 다만 통지는 두 통까지라 주소가 이미 지워졌으면 안 나간다
+  // 조서를 받아 가지 않은 판결은 받지 않는다
+  const stray = await post('/api/verdict', { caseId: forB.caseId, verdict: 'guilty', judgeName: '정', player: 'E' });
+  assert.equal(stray.delivered, false, '받아 가지 않은 판결은 거절');
+  assert.equal(stray.already, true);
+
+  // 세 번째 판결도 받는다(받아 간 뒤라면). 다만 통지는 두 통까지라 주소가 이미 지워졌으면 안 나간다
+  const forE = await post('/api/case', { player: 'E' });
+  assert.equal(forE.caseId, forB.caseId, 'E 도 같은 조서를 받는다');
   const third = await post('/api/verdict', {
-    caseId: forB.caseId, verdict: 'guilty', judgeName: '정', player: 'E',
+    caseId: forE.caseId, verdict: 'guilty', judgeName: '정', player: 'E',
   });
   assert.equal(third.ok, true, '판결에는 상한이 없다');
   assert.equal(third.nth, 3);
