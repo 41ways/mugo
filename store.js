@@ -121,6 +121,7 @@ class FileStore {
   async judge(id, patch) {
     const row = this.rows.find((r) => r.id === id);
     if (!row) return null;
+    if (patch.judged_by && patch.judged_by !== 'anon' && judgedBy(row, patch.judged_by)) return null;
     const seen = row.judged_count != null ? row.judged_count : (row.judged_at ? 1 : 0);
     const entry = verdictEntry(patch);
     row.verdicts = (row.verdicts || []).concat([entry]);
@@ -239,7 +240,7 @@ class PgStore {
           WHERE player <> $1
             AND NOT (verdicts @> $2::jsonb)
             AND (claimed_at IS NULL OR claimed_at < $3)
-          ORDER BY created_at
+          ORDER BY judged_count, created_at
           LIMIT 50
           FOR UPDATE`,
         [me, JSON.stringify([{ by: me }]), now + PARK_MS]);
@@ -273,7 +274,8 @@ class PgStore {
     return rows[0] || null;
   }
 
-  // 두 사람까지. 동시에 들어와도 한 번의 UPDATE 안에서 세므로 셋이 되지 않는다.
+  // 판결은 몇 번이든 쌓이지만 한 사람은 한 번이다. 순번은 한 번의 UPDATE 안에서 매겨져 겹치지 않고,
+  // 통지를 몇 번째까지 보낼지는 server.js 가 그 순번으로 가른다.
   async judge(id, patch) {
     const entry = verdictEntry(patch);
     const { rows } = await this.pool.query(
@@ -287,9 +289,10 @@ class PgStore {
               judge_name   = COALESCE(judge_name, $5),
               judged_at    = COALESCE(judged_at, $6)
         WHERE id = $1
+          AND ($7 = 'anon' OR $7 = '' OR NOT (verdicts @> $8::jsonb))   -- 같은 사람이 두 번 판결하지 못한다
         RETURNING *`,
       [id, JSON.stringify([entry]), patch.verdict, patch.reason,
-       patch.judge_name, entry.at, entry.by]);
+       patch.judge_name, entry.at, entry.by, JSON.stringify([{ by: entry.by }])]);
     return rows[0] || null;
   }
 
