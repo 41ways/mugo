@@ -189,20 +189,10 @@ const done = (code) => { if (srv) srv.kill(); fs.rmSync(dir, { recursive: true, 
   const mineX = await post('/api/mine', { player: 'nobody-here' });
   assert.equal(mineX.found, false, '다른 브라우저에서 온 사람에게는 찾을 게 없다');
 
-  // 결과를 들여다보면 그때가 적힌다 — 메일이 아니어도 받았는지 알 수 있게
-  await get('/api/statement/' + a.token);
-  const lookedRow = JSON.parse(fs.readFileSync(path.join(dir, 'statements.json'), 'utf8')).find((r) => r.token === a.token);
-  assert.ok(lookedRow.looked_at, '들여다본 때가 남는다');
-  assert.ok(lookedRow.looked_count > 0, '판결이 난 뒤에 봤다');
-
-  // 두 번 봐도 한 번 본 것과 같다 — 페이지 내용도, 기록도
+  // 결과 링크는 두 번 봐도 똑같다
   const [, look1] = await get('/api/statement/' + a.token);
-  await new Promise((r) => setTimeout(r, 15));
   const [, look2] = await get('/api/statement/' + a.token);
-  const same = (x) => JSON.stringify({ ...x, waited: 0 });
-  assert.equal(same(look2), same(look1), '두 번째로 봐도 보이는 내용이 같다');
-  const lookedAgain = JSON.parse(fs.readFileSync(path.join(dir, 'statements.json'), 'utf8')).find((r) => r.token === a.token);
-  assert.equal(lookedAgain.looked_at, lookedRow.looked_at, '다시 봐도 처음 본 때가 바뀌지 않는다');
+  assert.equal(JSON.stringify({ ...look2, waited: 0 }), JSON.stringify({ ...look1, waited: 0 }), '두 번째로 봐도 같다');
 
   // 없는 번호
   const [nf] = await get('/api/statement/deadbeef');

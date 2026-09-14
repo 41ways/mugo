@@ -146,17 +146,6 @@ class FileStore {
       .sort((a, b) => b.created_at - a.created_at)[0] || null;
   }
 
-  // 결과를 처음 들여다본 때를 적는다. 같은 판결을 다시 보면 아무것도 바꾸지 않고,
-  // 새 판결이 난 뒤에 볼 때만 새로 적는다 — 두 번 봐도 한 번 본 것과 같게.
-  async markLooked(id, count) {
-    const row = this.rows.find((r) => r.id === id);
-    if (!row) return;
-    if (row.looked_count != null && row.looked_count >= count) return;
-    row.looked_at = Date.now();
-    row.looked_count = count;
-    await this.flush();
-  }
-
   async judge(id, patch) {
     const row = this.rows.find((r) => r.id === id);
     if (!row) return null;
@@ -241,10 +230,6 @@ ALTER TABLE statements ADD COLUMN IF NOT EXISTS holds JSONB NOT NULL DEFAULT '[]
 -- 한 판의 진술에 붙는 고유 번호. 서버가 막 깨어나는 중에 다시 보내도 두 번 들어가지 않게.
 ALTER TABLE statements ADD COLUMN IF NOT EXISTS nonce TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS statements_nonce ON statements (nonce) WHERE nonce IS NOT NULL;
--- 진술한 사람이 조서 번호로 결과를 들여다본 마지막 때, 그리고 그때 판결이 몇 개였는지.
--- 「메일이 아니더라도 결과를 받았나」를 운영하는 쪽에서 볼 수 있게.
-ALTER TABLE statements ADD COLUMN IF NOT EXISTS looked_at BIGINT;
-ALTER TABLE statements ADD COLUMN IF NOT EXISTS looked_count INT;
 CREATE INDEX IF NOT EXISTS statements_player ON statements (player, created_at);
 
 -- 이미 판결이 난 옛 행들을 새 칸으로 옮긴다. 한 번 읽힌 것으로 친다.
@@ -348,15 +333,6 @@ class PgStore {
     return rows[0] || null;
   }
 
-  // 결과를 처음 들여다본 때를 적는다. 같은 판결을 다시 보면 아무것도 바꾸지 않고,
-  // 새 판결이 난 뒤에 볼 때만 새로 적는다 — 두 번 봐도 한 번 본 것과 같게.
-  async markLooked(id, count) {
-    await this.pool.query(
-      `UPDATE statements SET looked_at = $2, looked_count = $3
-        WHERE id = $1 AND (looked_count IS NULL OR looked_count < $3)`,
-      [id, Date.now(), count]);
-  }
-
   // 판결은 몇 번이든 쌓이지만 한 사람은 한 번이다. 순번은 한 번의 UPDATE 안에서 매겨져 겹치지 않고,
   // 통지를 몇 번째까지 보낼지는 server.js 가 그 순번으로 가른다.
   async judge(id, patch) {
@@ -417,7 +393,7 @@ class PgStore {
   async all() {
     const { rows } = await this.pool.query(
       `SELECT id, name, caught, created_at, claimed_at, judged_at, verdict, judge_name,
-              judged_count, verdicts, holds, looked_at, looked_count, (email IS NOT NULL) AS email
+              judged_count, verdicts, holds, (email IS NOT NULL) AS email
          FROM statements`);
     return rows;
   }

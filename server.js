@@ -198,8 +198,6 @@ async function apiMine(req, res) {
 async function apiLookup(res, token) {
   const row = await store.byToken(clip(token, 64));
   if (!row) return json(res, 404, { error: '그런 진술서는 없다' });
-  // 들여다봤다는 것만 적는다. 운영하는 쪽이 「결과를 받았나」를 볼 수 있게.
-  await store.markLooked(row.id, listOf(row.verdicts).length).catch((e) => console.error('[조회 기록 실패]', e.message));
   json(res, 200, {
     name: row.name,
     answers: typeof row.answers === 'string' ? JSON.parse(row.answers) : row.answers,
