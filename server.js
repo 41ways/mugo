@@ -39,7 +39,10 @@ const clip = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().sl
 // 사람이 읽을 글자만 남긴다. 판결문에 그대로 실리는 문장이라 태그가 섞이면 곤란하다.
 const clean = (v, n) => clip(v, n).replace(/[<>]/g, '');
 
-const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+// 메일 서버가 받아주는 모양만 통과시킨다. 한글 주소(응애@이메일.com 같은)는 Brevo 가
+// 「email is not valid」로 되돌려 보내므로, 받을 때부터 걸러야 판결 통지가 헛돌지 않는다.
+const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
+const isEmail = (v) => EMAIL_RE.test(v);
 
 function json(res, code, body) {
   const buf = Buffer.from(JSON.stringify(body));

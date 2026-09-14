@@ -1161,8 +1161,9 @@
     const email = await new Promise((r) => {
       ok.onclick = () => {
         const v = input.value.trim();
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) {
-          err.textContent = '그건 주소가 아니오. 편지가 닿을 곳을 대시오.';
+        // 서버와 같은 규칙. 우편이 알아볼 수 있는 영문 주소만 받는다.
+        if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/.test(v)) {
+          err.textContent = '그건 주소가 아니오. 우편이 알아볼 수 있게 영문으로 대시오.';
           err.style.display = '';
           return;
         }

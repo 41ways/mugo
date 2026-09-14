@@ -161,6 +161,18 @@ const done = (code) => { if (srv) srv.kill(); fs.rmSync(dir, { recursive: true, 
   assert.ok(saved[0].verdicts[1].mail, '둘째 판결에도 따로 남는다');
   assert.ok(log.includes('a@example.com'), '메일이 (콘솔로라도) 나가야 한다');
 
+  // 메일 서버가 못 받는 주소는 받을 때부터 버린다 — 판결이 나도 통지가 헛돌기만 한다
+  const junk = await post('/api/statement', {
+    player: 'Z3', name: '장난', email: '응애@이메일.com', answers: ['나 아니야', '', ''],
+  });
+  const afterJunk = JSON.parse(fs.readFileSync(path.join(dir, 'statements.json'), 'utf8'));
+  assert.equal(afterJunk.find((r) => r.token === junk.token).email, null, '한글 주소는 저장하지 않는다');
+  const good = await post('/api/statement', {
+    player: 'Z4', name: '정상', email: 'a.b+c@mail.example.co.kr', answers: ['아니오', '', ''],
+  });
+  const afterGood = JSON.parse(fs.readFileSync(path.join(dir, 'statements.json'), 'utf8'));
+  assert.equal(afterGood.find((r) => r.token === good.token).email, 'a.b+c@mail.example.co.kr', '보통 주소는 받는다');
+
   // 없는 번호
   const [nf] = await get('/api/statement/deadbeef');
   assert.equal(nf, 404);
