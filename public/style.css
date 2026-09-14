@@ -709,7 +709,8 @@ body.in-scene #corner, body.slow #corner{display:none}
 /* ── 끝에 펼치는 「이 밤에 당신이 고른 것」 ─────────────────── */
 /* 조서 한 장처럼 보이되, 화면 높이를 넘으면 그 안에서만 넘겨 읽는다 */
 #flow > .file.recap{
-  flex:1 1 auto; min-height:0; max-height:none; margin:clamp(6px,1.4vh,14px) 0 0;
+  /* 내용 높이만큼만. 넘칠 때만 줄어들어 그 안에서 넘겨 읽는다 */
+  flex:0 1 auto; min-height:0; max-height:none; margin:clamp(6px,1.4vh,14px) 0 0;
   display:flex; flex-direction:column; overflow:hidden; transform:none;
   animation:leaf .42s cubic-bezier(.2,.75,.3,1) both;
 }
@@ -726,7 +727,7 @@ body.in-scene #corner, body.slow #corner{display:none}
   font-family:var(--mono); font-size:10px; letter-spacing:.2em; color:#9a8a6c;
   transition:opacity .25s;
 }
-.file.recap .recap-more.gone{opacity:0}
+.file.recap .recap-more.gone{opacity:0; height:0; margin-top:0; overflow:hidden}   /* 다 보이면 자리도 비운다 */
 .file.recap .recap-item{padding:9px 0 10px; border-bottom:1px solid #d3c7ab}
 .file.recap .recap-item:first-child{padding-top:2px}
 .file.recap .recap-item:last-child{border-bottom:0}

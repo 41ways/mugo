@@ -122,9 +122,6 @@
     myVerdict: null,
     traces: [],      // 오는 길에 몸에 남은 것들. 유치장의 남자가 이걸 읽는다.
     chased: true,    // 범인을 쫓았는가, 피해자 곁에 남았는가
-    road: [],        // 오는 길에 고른 것 — 끝에서 되짚는다
-    officeSeen: 0,   // 소장 방에서 본 곳 수
-    perfect: false,  // 추론을 한 번에 다 맞췄는가
     way: '',         // 비명 뒤에 들어간 길
   };
 
@@ -830,7 +827,6 @@
       const i = await choose(b.ask, b.opts.map((o) => o.label));
       state.traces.push(b.opts[i].trace);
       note(b.opts[i].label);
-      state.road.push(b.opts[i].label);
       await say([{ s: b.opts[i].out }]);
     }
     await say(S.act0.arrive);
@@ -844,8 +840,6 @@
     found.forEach((f) => note(`${f.tag} — ${f.text}`));
     const perfect = await deduce(S.act1.deduce);
     note(perfect ? '세 가지를 다 맞췄다. 켈러가 십오 분을 내줬다.' : '헛짚은 데가 있었다. 그래도 십오 분은 받았다.');
-    state.officeSeen = found.length;
-    state.perfect = perfect;
 
     const blows = found.map((f) => S.act1.blows[f.id]).filter(Boolean)
       .map((s) => ({ who: '나', s }));
@@ -1247,28 +1241,11 @@
     end.appendChild(footerNode('주소는 판결 통지를 보내고 나면 지워진다.'));
   }
 
-  // 끝에서 되짚는다. 무엇을 골랐는지 전부가 아니라, 그래서 무엇이 달라졌는지만.
-  // (유치장 관찰·살리려던 세 번·갈림길·몸싸움은 결과를 바꾸지 않으므로 넣지 않는다)
+  // 끝에서 되짚는다. 비명 이후 네 갈래 — 들어간 길, 쫓았나, 수첩, 심문 — 와
+  // 그래서 무엇이 달라졌는지만 한 줄씩.
   async function showChoices(answers = []) {
     const rows = [];
     const add = (what, then) => rows.push({ what, then });
-
-    if (state.road.length) {
-      add(`오는 길 — ${state.road.join(' · ')}`,
-        '유치장의 남자가 당신 몸에 남은 이것들을 읽어냈다');
-    }
-
-    const beat = state.humiliation >= 6;
-    add(`소장 방에서 ${state.officeSeen}곳을 보고, 추론은 ${state.perfect ? '한 번에 다 맞췄다' : '헛짚은 데가 있었다'}`,
-      beat ? `${state.perfect ? '' : '그래도 본 게 많았다. '}켈러의 코를 납작하게 했고, 잡혔을 때 그가 그대로 되갚았다`
-           : '켈러를 다 꺾지는 못했다. 잡혔을 때 그는 눈을 피했다');
-
-    const c = state.caseData;
-    if (c && state.myVerdict) {
-      const whom = /말하지 않았다|^\s*$/.test(c.name || '') ? '이름을 대지 않은 남자' : c.name;
-      add(`${whom}에게 ${state.myVerdict.v === 'guilty' ? '유죄' : '무죄'}`,
-        c.seed ? '오래된 조서라 통지는 가지 않았다' : '그 사람에게 판결 통지가 간다');
-    }
 
     add(`저녁에 수첩에 ${state.pages.length}곳을 적고, 비명 뒤에 「${state.way}」`,
       state.knewWay ? '적어둔 길이라 한 박자 먼저 닿았다. 살릴 기회가 세 번 있었다'
