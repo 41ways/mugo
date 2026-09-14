@@ -705,3 +705,42 @@ body.in-scene #corner, body.slow #corner{display:none}
   border:1px solid var(--line); border-radius:3px; padding:9px 22px;
 }
 #notes .shut:hover{color:var(--lamp); border-color:rgba(216,162,74,.42)}
+
+/* ── 끝에 펼치는 「이 밤에 당신이 고른 것」 ─────────────────── */
+/* 조서 한 장처럼 보이되, 화면 높이를 넘으면 그 안에서만 넘겨 읽는다 */
+#flow > .file.recap{
+  flex:1 1 auto; min-height:0; max-height:none; margin:clamp(6px,1.4vh,14px) 0 0;
+  display:flex; flex-direction:column; overflow:hidden; transform:none;
+  animation:leaf .42s cubic-bezier(.2,.75,.3,1) both;
+}
+.file.recap h4{flex:none}
+.file.recap .recap-body{
+  flex:1 1 auto; min-height:0; overflow-y:auto; padding-right:8px; margin-right:-4px;
+  /* 더 있다는 걸 아래를 흐리게 해서 알린다. 끝까지 내리면 걷힌다. */
+  -webkit-mask-image:linear-gradient(to bottom, #000 calc(100% - 46px), transparent);
+          mask-image:linear-gradient(to bottom, #000 calc(100% - 46px), transparent);
+}
+.file.recap .recap-body.at-end{-webkit-mask-image:none; mask-image:none}
+.file.recap .recap-more{
+  flex:none; margin-top:8px; text-align:center;
+  font-family:var(--mono); font-size:10px; letter-spacing:.2em; color:#9a8a6c;
+  transition:opacity .25s;
+}
+.file.recap .recap-more.gone{opacity:0}
+.file.recap .recap-ch{
+  margin:16px 0 5px; font-family:var(--mono); font-size:10px; letter-spacing:.24em;
+  color:#8a6a34; text-transform:uppercase;
+}
+.file.recap .recap-ch:first-child{margin-top:2px}
+.file.recap .recap-li{
+  position:relative; margin:0 0 5px; padding-left:13px;
+  font-size:14px; line-height:1.7; color:#2e2922;
+}
+.file.recap .recap-li::before{
+  content:''; position:absolute; left:1px; top:.8em; width:5px; height:1px; background:#a08a5e;
+}
+/* 종이 위에 검은 스크롤바가 튀지 않게 */
+.file.recap .recap-body{scrollbar-width:thin; scrollbar-color:#b8a785 transparent}
+.file.recap .recap-body::-webkit-scrollbar{width:6px}
+.file.recap .recap-body::-webkit-scrollbar-track{background:transparent}
+.file.recap .recap-body::-webkit-scrollbar-thumb{background:#b8a785; border-radius:3px}
