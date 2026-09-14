@@ -789,12 +789,12 @@ body.in-scene #corner, body.slow #corner{display:none}
   background:
     radial-gradient(70% 55% at 50% 34%, rgba(236,196,128,.30), rgba(236,196,128,.08) 55%, transparent 80%),
     radial-gradient(140% 100% at 50% 110%, rgba(0,0,0,.55), transparent 60%);
-  transition:opacity 1.6s ease, filter 1.6s ease;
+  transition:opacity 1.6s ease; will-change:opacity;
 }
 /* 뜸 — 가장자리가 조여 들고 빛이 줄어든다.
    큰 흐림 그림자는 좁은 화면에서 줄무늬로 깨져서, 그라데이션을 겹쳐 투명도로 켠다. */
 .notice::before, .notice::after{
-  content:''; position:absolute; inset:0; pointer-events:none; z-index:3; opacity:0;
+  content:''; position:absolute; inset:0; pointer-events:none; z-index:3; opacity:0; will-change:opacity;
 }
 .notice::before{
   background:radial-gradient(ellipse 75% 70% at 50% 45%, transparent 40%, rgba(0,0,0,.78) 100%);
@@ -808,7 +808,11 @@ body.in-scene #corner, body.slow #corner{display:none}
 .notice.hush .notice-light{opacity:.55}
 .notice.impact::after, .notice.after-guilty::after{opacity:1}
 .notice.impact::after{transition:opacity .25s ease-in}
-.notice.relief .notice-light, .notice.after-innocent .notice-light{opacity:1; filter:brightness(1.25)}
+.notice-warm{
+  position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity 1.6s ease; will-change:opacity;
+  background:radial-gradient(70% 55% at 50% 38%, rgba(246,214,150,.22), transparent 75%);
+}
+.notice.relief .notice-warm, .notice.after-innocent .notice-warm{opacity:1}
 
 .notice-flash{
   position:absolute; inset:0; z-index:4; pointer-events:none; opacity:0;
@@ -821,6 +825,7 @@ body.in-scene #corner, body.slow #corner{display:none}
   position:absolute; inset:0; z-index:2; overflow-y:auto; -webkit-overflow-scrolling:touch;
   display:flex; flex-direction:column; align-items:center;
   padding:clamp(26px,8vh,80px) 16px 48px; gap:22px;
+  will-change:transform;
 }
 .notice.impact .notice-stage{animation:quake .5s cubic-bezier(.36,.07,.19,.97) both}
 @keyframes quake{
@@ -831,41 +836,33 @@ body.in-scene #corner, body.slow #corner{display:none}
 .notice-btn{opacity:0; transform:translateY(8px); transition:opacity .5s, transform .5s}
 .notice-btn.on{opacity:1; transform:none}
 
-/* 봉투 */
+/* 봉투 — 아무것도 적지 않은 누런 봉투. 가운데 「판결문」 석 자만. 윗단을 뜯어 연다 */
 .env{
-  position:relative; width:min(340px, 84vw); aspect-ratio:1.6; margin-top:clamp(20px,10vh,90px);
-  opacity:0; transform:translateY(-26px) rotate(-2deg);
+  position:relative; width:min(360px, 84vw); aspect-ratio:1.62; margin-top:clamp(20px,10vh,90px);
+  opacity:0; transform:translateY(-22px) rotate(-1.6deg);
   transition:opacity .7s ease, transform .8s cubic-bezier(.2,.8,.25,1);
-  perspective:900px;
+  will-change:transform, opacity;
 }
-.env.on{opacity:1; transform:rotate(-1.2deg)}
-.env-body{
-  position:absolute; inset:0; border-radius:3px;
-  background:linear-gradient(170deg,#efe5cf,#ddd0b3); box-shadow:0 22px 50px rgba(0,0,0,.55);
-  display:flex; flex-direction:column; justify-content:flex-end; align-items:center;
-  padding:0 18px 18px; text-align:center; line-height:1.35;
+.env.on{opacity:1; transform:rotate(-1deg)}
+.env-paper{
+  position:absolute; inset:0; border-radius:2px;
+  background:linear-gradient(180deg,#ebe0c6,#dccdab);
+  box-shadow:0 20px 44px rgba(0,0,0,.5);
+  display:flex; align-items:center; justify-content:center;
 }
-.env-from{font-family:var(--mono); font-size:10.5px; letter-spacing:.3em; color:#8a7c66}
-.env-to{margin:6px 0 4px; font-size:clamp(19px,5vw,23px); color:#231f1a; font-weight:700}
-.env-kind{font-size:12.5px; color:#6d6252; letter-spacing:.08em}
-.env-flap{
-  position:absolute; left:0; right:0; top:0; height:40%;
-  background:linear-gradient(180deg,#e6dbc2,#d6c7a6);
-  clip-path:polygon(0 0,100% 0,50% 100%); transform-origin:top center;
-  transition:transform .6s cubic-bezier(.5,0,.3,1);
-  filter:drop-shadow(0 3px 2px rgba(0,0,0,.18));
+.env-title{
+  font-family:var(--serif); font-weight:700; color:#2b241c;
+  font-size:clamp(28px,8vw,38px); letter-spacing:.42em; text-indent:.42em;
 }
-.env-seal{
-  position:absolute; left:50%; top:40%; width:44px; height:44px; margin:-22px 0 0 -22px;
-  border-radius:50%; display:flex; align-items:center; justify-content:center;
-  background:radial-gradient(circle at 38% 34%, #b8392a, #7d1c14 62%, #5a120c);
-  box-shadow:0 3px 8px rgba(0,0,0,.4), inset 0 -2px 4px rgba(0,0,0,.35);
-  color:rgba(255,220,200,.72); font-size:18px; font-weight:700;
-  transition:transform .45s ease, opacity .45s ease;
+.env-strip{
+  position:absolute; left:0; right:0; top:0; height:17%;
+  background:#e9ddc3;
+  transform-origin:12% 100%;
+  transition:transform .6s cubic-bezier(.4,0,.6,1), opacity .5s ease .1s;
+  will-change:transform, opacity;
 }
-.env.open .env-flap{transform:rotateX(180deg)}
-.env.open .env-seal{transform:scale(1.3) rotate(18deg); opacity:0}
-.env.out{opacity:0; transform:translateY(60px) rotate(2deg) scale(.96); transition:opacity .5s ease, transform .6s ease}
+.env.open .env-strip{transform:translate(28px,-46px) rotate(-11deg); opacity:0}
+.env.out{opacity:0; transform:translateY(70px) rotate(1.5deg) scale(.97); transition:opacity .55s ease, transform .6s ease}
 
 /* 통지서 */
 .sheet{
@@ -877,6 +874,7 @@ body.in-scene #corner, body.slow #corner{display:none}
   border-radius:2px; padding:clamp(24px,5vw,40px) clamp(20px,5vw,40px) 26px;
   opacity:0; transform:translateY(90px) scale(.95);
   transition:opacity .8s ease, transform 1s cubic-bezier(.16,.84,.3,1);
+  will-change:transform, opacity;
 }
 .sheet.on{opacity:1; transform:none}
 .sheet.gone{opacity:0; transform:translateY(-60px) rotate(-1.5deg); transition:opacity .5s, transform .6s}
@@ -910,8 +908,8 @@ body.in-scene #corner, body.slow #corner{display:none}
 .sh-verdict.innocent span{color:#3f5448}
 .sh-verdict.slam span{animation:slam .26s cubic-bezier(.7,0,.84,0) forwards}
 @keyframes slam{
-  0%{opacity:0; transform:scale(3.2) rotate(-14deg); filter:blur(3px)}
-  70%{opacity:1; transform:scale(.94) rotate(-6deg); filter:none}
+  0%{opacity:0; transform:scale(3.2) rotate(-14deg)}
+  70%{opacity:1; transform:scale(.94) rotate(-6deg)}
   100%{opacity:1; transform:scale(1) rotate(-7deg)}
 }
 .sh-verdict.press span{animation:press .7s cubic-bezier(.2,.7,.3,1) forwards}
@@ -932,6 +930,8 @@ body.in-scene #corner, body.slow #corner{display:none}
 }
 .sh-reason span{display:block; margin-bottom:6px; font-family:var(--mono); font-size:10.5px; letter-spacing:.28em; color:#8a7c66}
 .sh-reason p{margin:0; font-size:clamp(16px,4.4vw,18px); line-height:1.75; color:#231f1a}
+.sh-lead{margin:0 0 16px; font-size:16px; line-height:1.85; color:#2a241d}
+.sh-ps{margin:18px 0 0; font-size:14px; line-height:1.8; color:#6d6252}
 .sh-foot{margin-top:22px; text-align:right; font-family:var(--mono); font-size:11px; letter-spacing:.3em; color:#8a7c66}
 
 .notice-lines{width:min(560px,92vw); display:flex; flex-direction:column; gap:8px; text-align:center}

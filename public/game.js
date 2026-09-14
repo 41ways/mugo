@@ -1432,8 +1432,11 @@
     const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const pause = (ms) => wait(calm ? Math.min(ms, 250) : ms);
 
+    // 뒤에 깔린 화면 전체 입자·비네트는 통지서가 덮는다. 보이지도 않는데 계속 그리면 끊긴다
+    for (const id of ['grain', 'vignette']) { const n = document.getElementById(id); if (n) n.hidden = true; }
     const root = document.body.appendChild(el('div', 'notice'));
     root.appendChild(el('div', 'notice-light'));
+    root.appendChild(el('div', 'notice-warm'));
     const flash = root.appendChild(el('div', 'notice-flash'));
     const stage = root.appendChild(el('div', 'notice-stage'));
     requestAnimationFrame(() => root.classList.add('on'));
@@ -1462,12 +1465,14 @@
     const list = !r.judged ? [] : (r.verdicts && r.verdicts.length)
       ? r.verdicts : [{ verdict: r.verdict, reason: r.reason, judgeName: r.judgeName }];
 
-    // 봉투
+    // 봉투 — 우편으로 온 앞면. 윗단을 뜯어 연다
+    // 찢긴 선 하나를 띠와 봉투가 나눠 갖는다 — 띠는 아랫단, 봉투는 윗단이 톱니가 된다
+    const jag = Array.from({ length: 23 }, (_, k) => [k / 22 * 100, k % 2 ? 100 : 74 + (k * 37 % 17)]);
+    const torn = [...jag].reverse().map(([x, y]) => `${x.toFixed(1)}% ${y}%`).join(',');
+    const left = jag.map(([x, y]) => `${x.toFixed(1)}% ${(y * .17).toFixed(1)}%`).join(',');
     const env = stage.appendChild(el('div', 'env',
-      `<div class="env-body"><span class="env-from">회항 지방법원</span>` +
-      `<b class="env-to">${esc(r.name)} 앞</b>` +
-      `<span class="env-kind">${list.length ? (list.length > 1 ? '판결 통지 · 두 통' : '판결 통지') : '봉해진 조서'}</span></div>` +
-      `<div class="env-flap"></div><div class="env-seal"><i>회</i></div>`));
+      `<div class="env-paper"><b class="env-title">판결문</b></div>` +
+      `<div class="env-strip" style="clip-path:polygon(0 0,100% 0,${torn})"></div>`));
     await pause(700);
     env.classList.add('on');
     await pause(900);
@@ -1483,10 +1488,11 @@
     }
 
     await button('봉투를 뜯는다');
+    env.querySelector('.env-paper').style.clipPath = `polygon(${left},100% 100%,0 100%)`;
     env.classList.add('open');
-    await pause(650);
+    await pause(700);
     env.classList.add('out');
-    await pause(500);
+    await pause(600);
     env.remove();
 
     const flipped = list.length > 1 && list.some((v) => v.verdict !== list[0].verdict);
@@ -1510,10 +1516,25 @@
     }
     endButtons();
 
-    // 통지서 한 장 — 한 줄씩 올라오다, 주문에서 숨을 멈추고, 도장이 떨어진다
+    // 통지서 한 장 — 한 줄씩 올라오다, 주문에서 숨을 멈추고, 도장이 떨어진다.
+    // 줄은 처음부터 자리를 잡아 둔다. 나올 때마다 밀려나면 화면이 덜컥거린다.
     async function sheet(v, i) {
       const guilty = v.verdict === 'guilty';
       const judge = v.judgeName || '이름을 밝히지 않은 탐정';
+      const last = i === list.length - 1;
+      const lines = guilty ? [
+        ['sh-sentence', '선고 — 사형'],
+        ['', '재판은 열렸으나 오래 걸리지 않았다. 회항에서 탐정의 말은 판결과 같은 무게를 가진다. 배심원은 십일 분 만에 돌아왔다.'],
+        ['', '회항에는 상소할 곳이 없다. 판결이 떨어지자 당신은 그 자리에서 끌려 나갔고, 형은 그날 부두 창고 앞 광장에서 곧바로 집행됐다.'],
+        ['sh-quiet', '안개가 짙어 구경꾼은 많지 않았다.'],
+      ] : [
+        ['sh-sentence calm', '석방'],
+        ['', '재판은 열리지 않았다. 증거가 사람을 목매달 만큼은 아니었다.'],
+        ['', '서류에 도장이 찍혔고, 당신은 그날 밤 뒷문으로 나왔다.'],
+        ['sh-quiet', '아무도 사과하지 않았다. 안개 속으로 걸어 나가는 당신의 뒷모습을 간수 하나가 오래 지켜봤다고 한다.'],
+      ];
+      if (i && list[0].verdict !== v.verdict) lines.splice(1, 0, ['sh-quiet', '앞의 판결과 정반대다.']);
+
       const paper = stage.appendChild(el('article', 'sheet'));
       paper.innerHTML =
         `<header class="sh-head sh-part"><span>회항 지방법원</span><span>${i ? '두 번째 판결 통지' : '판결 통지'}</span></header>` +
@@ -1522,24 +1543,31 @@
           `<div class="sh-part"><dt>사건</dt><dd>웬들 저택 살인</dd></div>` +
           `<div class="sh-part"><dt>심리</dt><dd>탐정 ${esc(judge)}</dd></div>` +
         `</dl>` +
+        `<p class="sh-lead sh-part">${esc(r.name)}. ` + (i
+          ? '당신의 조서는 한 번 더 읽혔다. 이번에는 다른 사람이었다.'
+          : `탐정 ${esc(judge)}${josa(judge, '이/가')} 당신의 진술을 읽었다.`) + `</p>` +
         `<div class="sh-order sh-part"><span class="sh-label">주문</span><span class="sh-dots"><i></i><i></i><i></i></span></div>` +
         `<div class="sh-verdict ${guilty ? 'guilty' : 'innocent'}"><span>${guilty ? '유죄' : '무죄'}</span></div>` +
-        `<div class="sh-body"></div>` +
+        `<div class="sh-body">${lines.map(([c, t]) => `<p class="${c}">${esc(t)}</p>`).join('')}</div>` +
         (v.reason ? `<blockquote class="sh-reason sh-part"><span>탐정의 소견</span><p>${esc(v.reason)}</p></blockquote>` : '') +
+        (last ? `<p class="sh-ps sh-part">당신을 판결한 사람도 당신과 똑같은 밤을 보냈고, 지금 어딘가에서 자기 판결을 기다리고 있다.</p>` : '') +
         `<footer class="sh-foot sh-part">회항 지방법원</footer>`;
 
+      stage.scrollTop = 0;
       requestAnimationFrame(() => paper.classList.add('on'));
       await pause(900);
 
-      const parts = [...paper.querySelectorAll('.sh-head, .sh-meta .sh-part, .sh-order')];
-      for (const p of parts) { p.classList.add('on'); await pause(520); }
+      for (const p of paper.querySelectorAll('.sh-head, .sh-meta .sh-part, .sh-lead, .sh-order')) {
+        p.classList.add('on'); await pause(520);
+      }
 
-      // 뜸 — 점이 하나씩 찍히는 동안 방이 조여 온다
+      // 뜸 — 도장 자리가 화면에 들어오게 미리 옮겨 두고, 점이 찍히는 동안 방이 조여 온다
+      const mark = paper.querySelector('.sh-verdict');
+      follow(mark, 'center');
       root.classList.add('hush');
       for (const d of paper.querySelectorAll('.sh-dots i')) { d.classList.add('on'); await pause(780); }
       await pause(700);
 
-      const mark = paper.querySelector('.sh-verdict');
       if (guilty) {
         mark.classList.add('slam');
         await pause(calm ? 0 : 170);
@@ -1556,34 +1584,31 @@
         root.classList.add('relief');
         await pause(1100);
       }
-      mark.scrollIntoView({ block: 'center', behavior: calm ? 'auto' : 'smooth' });
 
-      const body = paper.querySelector('.sh-body');
-      const lines = guilty ? [
-        ['sh-sentence', '선고 — 사형'],
-        ['', '회항에는 상소할 곳이 없다.'],
-        ['', '판결이 떨어지자 당신은 그 자리에서 끌려 나갔다. 형은 그날, 부두 창고 앞 광장에서 곧바로 집행됐다.'],
-        ['sh-quiet', '안개가 짙어 구경꾼은 많지 않았다.'],
-      ] : [
-        ['sh-sentence calm', '석방'],
-        ['', '재판은 열리지 않았다. 증거가 사람을 목매달 만큼은 아니었다.'],
-        ['', '서류에 도장이 찍혔고, 당신은 그날 밤 뒷문으로 나왔다.'],
-        ['sh-quiet', '아무도 사과하지 않았다.'],
-      ];
-      if (i && list[0].verdict !== v.verdict) lines.splice(1, 0, ['sh-quiet', '앞의 판결과 정반대다.']);
-      for (const [cls, t] of lines) {
-        const p = body.appendChild(el('p', cls, esc(t)));
-        requestAnimationFrame(() => p.classList.add('on'));
+      for (const p of paper.querySelectorAll('.sh-body p')) {
+        p.classList.add('on');
+        follow(p);
         await pause(guilty ? 1100 : 800);
       }
       root.classList.remove('impact', 'relief');
       root.classList.add(guilty ? 'after-guilty' : 'after-innocent');
 
-      for (const p of paper.querySelectorAll('.sh-reason, .sh-foot')) {
+      for (const p of paper.querySelectorAll('.sh-reason, .sh-ps, .sh-foot')) {
         p.classList.add('on');
-        p.scrollIntoView({ block: 'nearest', behavior: calm ? 'auto' : 'smooth' });
-        await pause(800);
+        follow(p);
+        await pause(900);
       }
+    }
+
+    // 나온 줄이 화면 아래로 벗어났을 때만 부드럽게 따라간다. 이미 보이면 가만히 둔다.
+    function follow(node, where = 'end') {
+      const box = stage.getBoundingClientRect(), n = node.getBoundingClientRect();
+      const target = where === 'center'
+        ? stage.scrollTop + n.top - box.top - (box.height - n.height) / 2
+        : stage.scrollTop + n.bottom - box.bottom + 36;
+      if (where !== 'center' && n.bottom <= box.bottom - 24) return;
+      if (where === 'center' && n.top >= box.top + box.height * .2 && n.bottom <= box.bottom - box.height * .2) return;
+      stage.scrollTo({ top: Math.max(0, target), behavior: calm ? 'auto' : 'smooth' });
     }
   }
 
