@@ -727,18 +727,15 @@ body.in-scene #corner, body.slow #corner{display:none}
   transition:opacity .25s;
 }
 .file.recap .recap-more.gone{opacity:0}
-.file.recap .recap-ch{
-  margin:16px 0 5px; font-family:var(--mono); font-size:10px; letter-spacing:.24em;
-  color:#8a6a34; text-transform:uppercase;
+.file.recap .recap-item{padding:9px 0 10px; border-bottom:1px solid #d3c7ab}
+.file.recap .recap-item:first-child{padding-top:2px}
+.file.recap .recap-item:last-child{border-bottom:0}
+.file.recap .recap-what{font-size:14.5px; line-height:1.65; color:#231f1a}
+.file.recap .recap-then{
+  position:relative; margin-top:3px; padding-left:18px;
+  font-size:13px; line-height:1.6; color:#6d6252;
 }
-.file.recap .recap-ch:first-child{margin-top:2px}
-.file.recap .recap-li{
-  position:relative; margin:0 0 5px; padding-left:13px;
-  font-size:14px; line-height:1.7; color:#2e2922;
-}
-.file.recap .recap-li::before{
-  content:''; position:absolute; left:1px; top:.8em; width:5px; height:1px; background:#a08a5e;
-}
+.file.recap .recap-then::before{content:'→'; position:absolute; left:0; top:0; color:#a08a5e}
 /* 종이 위에 검은 스크롤바가 튀지 않게 */
 .file.recap .recap-body{scrollbar-width:thin; scrollbar-color:#b8a785 transparent}
 .file.recap .recap-body::-webkit-scrollbar{width:6px}

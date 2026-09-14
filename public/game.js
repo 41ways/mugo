@@ -122,6 +122,10 @@
     myVerdict: null,
     traces: [],      // 오는 길에 몸에 남은 것들. 유치장의 남자가 이걸 읽는다.
     chased: true,    // 범인을 쫓았는가, 피해자 곁에 남았는가
+    road: [],        // 오는 길에 고른 것 — 끝에서 되짚는다
+    officeSeen: 0,   // 소장 방에서 본 곳 수
+    perfect: false,  // 추론을 한 번에 다 맞췄는가
+    way: '',         // 비명 뒤에 들어간 길
   };
 
   /* ── 수첩 — 그동안 무엇을 보고 무엇을 골랐는지 ─────────── */
@@ -131,10 +135,7 @@
   let chapter = '';
   const setChapter = (t) => { chapter = t; };
   const note = (t) => { if (t) notebook.push({ ch: chapter, t: String(t) }); };
-  // 고른 것만 따로 모은다. 끝에 「당신이 고른 것」으로 한 번에 보여준다.
-  // (pick 이라는 이름은 여러 장에서 지역 변수로 쓰고 있어 부딪히므로 chose 로 둔다)
-  const choices = [];
-  const chose = (t) => { if (t) choices.push({ ch: chapter, t: String(t) }); };
+
 
   function openNotes() {
     if (!notesBox.hidden) return;
@@ -829,7 +830,7 @@
       const i = await choose(b.ask, b.opts.map((o) => o.label));
       state.traces.push(b.opts[i].trace);
       note(b.opts[i].label);
-      chose(b.opts[i].label);
+      state.road.push(b.opts[i].label);
       await say([{ s: b.opts[i].out }]);
     }
     await say(S.act0.arrive);
@@ -841,10 +842,10 @@
     await say(S.act1.open);
     const found = await observe(S.act1.observe);
     found.forEach((f) => note(`${f.tag} — ${f.text}`));
-    chose(`살펴본 것 — ${found.map((f) => f.tag).join(', ')}`);
     const perfect = await deduce(S.act1.deduce);
     note(perfect ? '세 가지를 다 맞췄다. 켈러가 십오 분을 내줬다.' : '헛짚은 데가 있었다. 그래도 십오 분은 받았다.');
-    chose(perfect ? '추론 — 세 가지를 한 번에 다 맞췄다' : '추론 — 헛짚은 데가 있었다');
+    state.officeSeen = found.length;
+    state.perfect = perfect;
 
     const blows = found.map((f) => S.act1.blows[f.id]).filter(Boolean)
       .map((s) => ({ who: '나', s }));
@@ -884,9 +885,7 @@
     }
 
     await say(S.act2.after);
-    const seenCell = await observe(S.act2.observe);
-    seenCell.forEach((f) => note(`${f.tag} — ${f.text}`));
-    chose(`살펴본 것 — ${seenCell.map((f) => f.tag).join(', ')}`);
+    (await observe(S.act2.observe)).forEach((f) => note(`${f.tag} — ${f.text}`));
 
     // 사흘 동안 입을 안 열던 사람이, 먼저 당신을 읽는다.
     const R = S.act2.read;
@@ -923,9 +922,7 @@
     const verdict = await verdictForm();
     state.myVerdict = verdict;
     note(`내가 내린 판결 — ${verdict.v === 'guilty' ? '유죄' : '무죄'}. 「${verdict.reason}」`);
-    // 이름을 안 댄 사람은 「이름을 말하지 않았다에게」가 되어버리니 부르는 말을 바꾼다
-    const whom = /말하지 않았다|^\s*$/.test(c.name || '') ? '이름을 대지 않은 남자' : c.name;
-    chose(`${whom}에게 내린 판결 — ${verdict.v === 'guilty' ? '유죄' : '무죄'}. 「${verdict.reason}」`);
+
 
     // 판결을 보낸다. 앞사람에게 메일이 나가는 지점.
     api('/api/verdict', {
@@ -981,7 +978,7 @@
     const found = await observe(S.recon.observe);
     state.pages = found.map((f) => ({ id: f.id, cat: f.cat, text: f.page }));
     state.pages.forEach((pg) => note(pg.text));
-    chose(found.length ? `수첩에 적은 곳 — ${found.map((f) => f.tag).join(', ')}` : '수첩에 아무것도 적지 않았다');
+
     await say(state.pages.length >= 3 ? S.recon.close : S.recon.lazy);
   }
 
@@ -997,7 +994,7 @@
     const way = S.act3.ways[idx];
     state.knewWay = known.has(way.need);
     note(`들어간 길 — ${way.label}${state.knewWay ? ' (저녁에 적어둔 길)' : ''}`);
-    chose(`들어간 길 — ${way.label}${state.knewWay ? ' (저녁에 적어둔 길)' : ''}`);
+    state.way = way.label;
     await say([{ s: way.out }, state.knewWay ? { b: S.act3.knew } : { w: S.act3.blind }].concat(S.act3.run));
   }
 
@@ -1013,7 +1010,6 @@
     for (const r of rounds) {
       const pick = await choose(r.ask, r.opts.map((o) => o.label));
       note(r.opts[pick].label);
-      chose(r.opts[pick].label);
       await say([{ s: r.opts[pick].out }].concat(r.after));
     }
 
@@ -1025,7 +1021,7 @@
     const pick = await choose(F.ask, [F.chase.label, F.stay.label]);
     state.chased = pick === 0;
     note(state.chased ? '손을 떼고 쫓았다.' : '손을 떼지 않고 곁에 남았다.');
-    chose(state.chased ? '손을 떼고 쫓았다' : '손을 떼지 않고 곁에 남았다');
+
     await say(state.chased ? F.chase.out : F.stay.out);
   }
 
@@ -1040,12 +1036,7 @@
       const pick = await sceneTimed(words(j.cue), j.opts, 9);
       slow(false);
       note(`${j.where} — ${pick === j.right ? '길을 맞췄다' : pick < 0 ? '머뭇거렸다' : '헛짚었다'}`);
-      {
-        const o = j.opts[pick];
-        const label = o ? (typeof o === 'string' ? o : o.label) : '';
-        chose(pick < 0 ? `${j.where} — 고르지 못하고 머뭇거렸다`
-          : `${j.where} — ${label} (${pick === j.right ? '맞았다' : '헛짚었다'})`);
-      }
+
       if (pick === j.right) await sceneSay([{ s: j.win }]);
       else await sceneSay([{ s: pick < 0 ? S.act5.slow : j.lose }]);
       sceneClose();
@@ -1069,8 +1060,7 @@
       const pick = await sceneBeat(b, 7);
       const line = pick === b.right ? { b: b.win } : { s: b.lose };
       if (pick !== b.right) { state.hits.push(b.hurt); note(b.hurt); }
-      chose(pick < 0 ? `어둠 속 ${i + 1}합 — 손을 쓰지 못했다`
-        : `어둠 속 ${i + 1}합 — ${b.opts[pick].label} (${pick === b.right ? '막았다' : '놓쳤다'})`);
+
       // 마지막 합은 흉기가 손에 들어온 것까지 한 화면에 놓고, 누르지 않아도 넘어간다.
       if (last) await sceneSay([line].concat(S.act6.won), { auto: 1600 });
       else await sceneSay([line]);
@@ -1128,11 +1118,7 @@
     state.torn = state.pages.filter((pg) => tear.has(pg));
     state.torn.forEach((pg) => note(`찢어냈다 — ${pg.text}`));
     if (!state.torn.length) note('한 장도 찢지 않고 그대로 넘겼다.');
-    if (state.pages.length) {
-      chose(state.torn.length
-        ? `수첩에서 찢어낸 장 — ${state.torn.length}장 (남긴 장 ${state.pages.length - state.torn.length}장)`
-        : '수첩을 한 장도 찢지 않았다');
-    }
+
     await say(state.torn.length ? S.act7.found : S.act7.kept);
   }
 
@@ -1162,7 +1148,7 @@
       const said = input.value.trim();
       answers.push(said);
       note(`「${threeQs(S.act8, state.chased ? 'dock' : 'house')[i]}」 — ${said || '……'}`);
-      chose(`「${threeQs(S.act8, state.chased ? 'dock' : 'house')[i]}」 — ${said || '……'}`);
+
       opts.innerHTML = '';
       addLine(el('div', 'said s-me', `<span class="who">나</span>${esc(said || '……')}`));
     }
@@ -1251,7 +1237,7 @@
     await say(S.act9.lastVisit);
 
     // 처음으로 돌아가기 전에, 이 밤에 무엇을 골랐는지 한 장에 펼친다.
-    await showChoices();
+    await showChoices(answers);
 
     const end = setFoot(el('div'));
     end.style.cssText = 'display:flex;flex-direction:column;gap:12px';
@@ -1261,16 +1247,56 @@
     end.appendChild(footerNode('주소는 판결 통지를 보내고 나면 지워진다.'));
   }
 
-  async function showChoices() {
-    if (!choices.length) return;
+  // 끝에서 되짚는다. 무엇을 골랐는지 전부가 아니라, 그래서 무엇이 달라졌는지만.
+  // (유치장 관찰·살리려던 세 번·갈림길·몸싸움은 결과를 바꾸지 않으므로 넣지 않는다)
+  async function showChoices(answers = []) {
+    const rows = [];
+    const add = (what, then) => rows.push({ what, then });
+
+    if (state.road.length) {
+      add(`오는 길 — ${state.road.join(' · ')}`,
+        '유치장의 남자가 당신 몸에 남은 이것들을 읽어냈다');
+    }
+
+    const beat = state.humiliation >= 6;
+    add(`소장 방에서 ${state.officeSeen}곳을 보고, 추론은 ${state.perfect ? '한 번에 다 맞췄다' : '헛짚은 데가 있었다'}`,
+      beat ? `${state.perfect ? '' : '그래도 본 게 많았다. '}켈러의 코를 납작하게 했고, 잡혔을 때 그가 그대로 되갚았다`
+           : '켈러를 다 꺾지는 못했다. 잡혔을 때 그는 눈을 피했다');
+
+    const c = state.caseData;
+    if (c && state.myVerdict) {
+      const whom = /말하지 않았다|^\s*$/.test(c.name || '') ? '이름을 대지 않은 남자' : c.name;
+      add(`${whom}에게 ${state.myVerdict.v === 'guilty' ? '유죄' : '무죄'}`,
+        c.seed ? '오래된 조서라 통지는 가지 않았다' : '그 사람에게 판결 통지가 간다');
+    }
+
+    add(`저녁에 수첩에 ${state.pages.length}곳을 적고, 비명 뒤에 「${state.way}」`,
+      state.knewWay ? '적어둔 길이라 한 박자 먼저 닿았다. 살릴 기회가 세 번 있었다'
+                    : '헤매느라 늦었다. 살릴 기회는 두 번뿐이었다');
+
+    add(state.chased ? '손을 떼고 쫓았다' : '손을 떼지 않고 곁에 남았다',
+      state.chased ? '부두 끝에서 흉기를 쥔 채 잡혔다'
+                   : '피투성이로 그녀의 목을 누른 채 저택에서 잡혔다');
+
+    if (state.pages.length) {
+      add(state.torn.length ? `수첩에서 ${state.torn.length}장을 찢었다` : '수첩을 한 장도 찢지 않았다',
+        state.torn.length ? '찢은 자리가 들켰다. 다음 사람에게 「계획적이었다」로 넘어간다'
+                          : '다음 사람에게 수첩이 깨끗하게 넘어간다');
+    } else {
+      add('수첩에 적은 것이 없었다', '찢을 것도 숨길 것도 없었다');
+    }
+
+    const said = answers.map((a) => (a || '').trim() || '……');
+    if (said.length) add(`심문에서 「${said.join('」 「')}」`, '다음 사람이 당신 입에서 이 세 마디를 듣는다');
+
     await turn(true);
     const card = el('div', 'file recap');
-    card.appendChild(el('h4', null, '이 밤에 당신이 고른 것'));
+    card.appendChild(el('h4', null, '이 밤에 당신이 정한 것'));
     const body = card.appendChild(el('div', 'recap-body'));
-    let last = null;
-    choices.forEach((c) => {
-      if (c.ch && c.ch !== last) { body.appendChild(el('div', 'recap-ch', esc(c.ch))); last = c.ch; }
-      body.appendChild(el('div', 'recap-li', esc(c.t)));
+    rows.forEach((r) => {
+      const item = body.appendChild(el('div', 'recap-item'));
+      item.appendChild(el('div', 'recap-what', esc(r.what)));
+      item.appendChild(el('div', 'recap-then', esc(r.then)));
     });
     flow.appendChild(card);
     body.scrollTop = 0;
@@ -1278,11 +1304,14 @@
     // 넘겨 볼 게 남았을 때만 「아래로」를 띄우고, 끝에 닿으면 걷는다
     const more = card.appendChild(el('div', 'recap-more', '아래로 넘겨 보시오'));
     const edge = () => {
-      const end = body.scrollTop + body.clientHeight >= body.scrollHeight - 4;
-      body.classList.toggle('at-end', end);
-      more.classList.toggle('gone', end);
+      const atEnd = body.scrollTop + body.clientHeight >= body.scrollHeight - 4;
+      body.classList.toggle('at-end', atEnd);
+      more.classList.toggle('gone', atEnd);
     };
     body.addEventListener('scroll', edge, { passive: true });
+    // 글꼴이 늦게 들어오거나 창 크기가 바뀌면 넘치는지가 달라진다. 그때마다 다시 잰다.
+    if (window.ResizeObserver) new ResizeObserver(edge).observe(body);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(edge);
     edge();
   }
 
