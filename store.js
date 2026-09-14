@@ -162,6 +162,17 @@ class FileStore {
       .sort((a, b) => a.judged_at - b.judged_at);
   }
 
+  // n번째 판결의 통지 결과를 그 판결 옆에 적어 둔다. 나중에 「나갔나」를 DB 만 보고 안다.
+  async markMailed(id, nth, info) {
+    const row = this.rows.find((r) => r.id === id);
+    if (!row) return;
+    const vs = listOf(row.verdicts);
+    if (!vs[nth - 1]) return;
+    vs[nth - 1].mail = info;
+    row.verdicts = vs;
+    await this.flush();
+  }
+
   // 대기열을 들여다볼 때만 쓴다(tools/queue.js). 게임 진행에는 안 쓰인다.
   async all() {
     return this.rows.slice();
@@ -327,6 +338,16 @@ class PgStore {
         WHERE judged_at IS NOT NULL AND email IS NOT NULL
         ORDER BY judged_at`);
     return rows;
+  }
+
+  // n번째 판결의 통지 결과를 그 판결 옆에 적어 둔다.
+  // 판결 목록 전체를 덮어쓰지 않고 그 칸만 고친다 — 사이에 다른 판결이 붙어도 안 지워진다.
+  async markMailed(id, nth, info) {
+    await this.pool.query(
+      `UPDATE statements
+          SET verdicts = jsonb_set(verdicts, ARRAY[$2::text, 'mail'], $3::jsonb, true)
+        WHERE id = $1 AND jsonb_array_length(verdicts) >= $4`,
+      [id, String(nth - 1), JSON.stringify(info), nth]);
   }
 
   // 대기열을 들여다볼 때만 쓴다(tools/queue.js). 주소는 있는지 없는지만 가져온다.

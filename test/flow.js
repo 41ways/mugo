@@ -151,6 +151,14 @@ const done = (code) => { if (srv) srv.kill(); fs.rmSync(dir, { recursive: true, 
   assert.equal(v2.delivered, false);
   const saved = JSON.parse(fs.readFileSync(path.join(dir, 'statements.json'), 'utf8'));
   assert.equal(saved[0].email, 'a@example.com', '발송에 실패했으면 주소는 남아 있어야 한다');
+
+  // 통지 결과가 판결 옆에 남는다 — 보낸편지함에 없어도 DB 만 보고 나갔는지 안다
+  const m1 = saved[0].verdicts[0].mail;
+  assert.ok(m1, '첫 판결에 통지 결과가 남아야 한다');
+  assert.equal(m1.ok, false);
+  assert.equal(m1.via, 'none');
+  assert.ok(m1.err, '실패 사유가 남는다');
+  assert.ok(saved[0].verdicts[1].mail, '둘째 판결에도 따로 남는다');
   assert.ok(log.includes('a@example.com'), '메일이 (콘솔로라도) 나가야 한다');
 
   // 없는 번호

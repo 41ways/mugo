@@ -36,10 +36,19 @@ const mask = (e) => {
 
 (async () => {
   const store = await openStore();
-  // 판결이 하나뿐인 조서는 첫 통지가 나갔어도 둘째 통지를 위해 주소를 남겨 둔다.
-  // 그래서 "주소가 남았다 = 못 나갔다" 는 마지막(둘째) 통지에서만 맞다. 그것만 다시 보낸다.
-  // (첫 통지가 실패한 건은 가려낼 수 없으니 둘째 판결이 나올 때 함께 나간다.)
-  const rows = (await store.undelivered()).filter((r) => listOf(r.verdicts).length >= MAX_MAILS);
+  // 이제 판결마다 통지 결과(mail)가 남는다. 그걸 보고 「못 나간 통지」를 바로 고른다 —
+  // 첫 통지든 둘째 통지든.
+  // 결과가 안 남은 옛 판결은 예전 규칙대로 가린다: 판결이 둘인데 주소가 남았으면 둘째가 못 나간 것.
+  const jobs = [];
+  for (const r of await store.undelivered()) {
+    const vs = listOf(r.verdicts);
+    const failed = vs.slice(0, MAX_MAILS)
+      .map((v, i) => ({ v, nth: i + 1 }))
+      .filter(({ v }) => v.mail && v.mail.ok === false);
+    if (failed.length) failed.forEach(({ nth }) => jobs.push({ row: r, nth }));
+    else if (vs.length >= MAX_MAILS && !vs[MAX_MAILS - 1].mail) jobs.push({ row: r, nth: MAX_MAILS });
+  }
+  const rows = jobs.map((j) => j.row);
   const now = Date.now();
 
   if (!rows.length) {
@@ -48,10 +57,12 @@ const mask = (e) => {
     return;
   }
 
-  console.log(`\n못 나간 판결 통지 ${rows.length}건\n`);
-  rows.forEach((r, i) => {
-    console.log(`${String(i + 1).padStart(2)}. ${r.name} → ${r.verdict === 'guilty' ? '유죄' : '무죄'}` +
-      `  (탐정 ${r.judge_name || '?'}, 판결 ${span(now - Number(r.judged_at))} 전)  ${mask(r.email)}`);
+  console.log(`\n못 나간 판결 통지 ${jobs.length}건\n`);
+  jobs.forEach(({ row: r, nth }, i) => {
+    const v = listOf(r.verdicts)[nth - 1] || {};
+    const why = v.mail && v.mail.err ? `  — ${v.mail.err}` : '';
+    console.log(`${String(i + 1).padStart(2)}. ${r.name} ${nth}번째 통지 → ${v.verdict === 'guilty' ? '유죄' : '무죄'}` +
+      `  (탐정 ${v.judge_name || '?'}, 판결 ${span(now - Number(v.at || r.judged_at))} 전)  ${mask(r.email)}${why}`);
   });
 
   if (!SEND) {
@@ -70,11 +81,14 @@ const mask = (e) => {
 
   console.log('');
   let ok = 0, fail = 0;
-  for (const row of rows) {
-    // 다시 보내는 건 마지막(둘째) 통지다. 판결이 셋 이상 쌓였어도 둘째 판결 기준으로 보낸다.
-    const sent = await mailer.sendVerdict(row, { nth: MAX_MAILS });
-    if (sent) { await store.clearEmail(row.id); ok += 1; }
-    else fail += 1;
+  for (const { row, nth } of jobs) {
+    const report = await mailer.sendVerdictReport(row, { nth });
+    await store.markMailed(row.id, nth, report);
+    if (report.ok) {
+      ok += 1;
+      // 마지막 통지까지 나갔으면 그때 주소를 지운다
+      if (nth >= MAX_MAILS) await store.clearEmail(row.id);
+    } else fail += 1;
     // Resend 무료 등급은 초당 2통이다. 한 박자 쉰다.
     await new Promise((r) => setTimeout(r, 600));
   }

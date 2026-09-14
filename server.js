@@ -124,7 +124,13 @@ async function apiVerdict(req, res) {
   // 순번(seen)은 판결을 기록한 UPDATE 가 한 번에 매기므로 동시에 들어와도 겹치지 않는다.
   // 주소를 지우는 건 발송 뒤라서, 순번으로 막지 않으면 동시에 들어온 판결마다 메일이 나간다.
   const seen = listOf(row.verdicts).length;
-  const delivered = row.email && seen <= MAX_MAILS ? await mailer.sendVerdict(row, { nth: seen }) : false;
+  const shouldMail = !!row.email && seen <= MAX_MAILS;
+  const report = shouldMail ? await mailer.sendVerdictReport(row, { nth: seen }) : null;
+  const delivered = !!(report && report.ok);
+
+  // 나갔는지·어느 길로·받은 쪽 번호·실패 사유를 그 판결 옆에 남긴다.
+  // Brevo 로 나간 메일은 Gmail 보낸편지함에 없으니, 나중에 확인할 곳이 여기뿐이다.
+  if (report) await store.markMailed(row.id, seen, report).catch((e) => console.error('[mail] 기록 실패', e.message));
 
   // 주소는 마지막 통지가 실제로 나간 다음에 지운다. 실패했는데 지우면
   // 다시 보낼 길이 영영 없어지고, 첫 통에 지우면 둘째 통을 못 보낸다.

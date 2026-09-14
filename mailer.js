@@ -184,28 +184,28 @@ async function viaResend(to, mail) {
   return (await res.json()).id;
 }
 
+// 보낸 결과를 그대로 돌려준다 — 나갔는지, 어느 길로, 받은 쪽의 번호는 무엇인지, 왜 실패했는지.
+// Brevo·Resend 로 보낸 메일은 Gmail 「보낸편지함」에 남지 않는다. 그쪽 서버에서 나가기
+// 때문이다. 그래서 나갔는지는 여기서 받은 번호(id)로 Brevo 로그에서 찾아야 한다.
 async function send(to, mail) {
-  if (!to) return false;
+  const at = Date.now();
+  if (!to) return { ok: false, via: 'none', at, err: '주소 없음' };
   if (!BREVO_KEY && !RESEND_KEY && !transport) {
     console.log(`\n[mail:콘솔] → ${to}\n  ${mail.subject}\n${mail.text}\n`);
-    return false;
+    return { ok: false, via: 'none', at, err: '발송 경로 없음' };
   }
+  const path = via();
   try {
-    if (BREVO_KEY) {
-      const id = await viaBrevo(to, mail);
-      console.log(`[mail] 발송 → ${to} : ${mail.subject} (${id})`);
-    } else if (RESEND_KEY) {
-      const id = await viaResend(to, mail);
-      console.log(`[mail] 발송 → ${to} : ${mail.subject} (${id})`);
-    } else {
-      await transport.sendMail({ from: FROM, to, ...mail });
-      console.log(`[mail] 발송 → ${to} : ${mail.subject}`);
-    }
-    return true;
+    let id = '';
+    if (BREVO_KEY) id = await viaBrevo(to, mail);
+    else if (RESEND_KEY) id = await viaResend(to, mail);
+    else { const r = await transport.sendMail({ from: FROM, to, ...mail }); id = r && r.messageId || ''; }
+    console.log(`[mail] 발송 → ${to} : ${mail.subject} (${path} ${id})`);
+    return { ok: true, via: path, id: String(id || ''), at };
   } catch (err) {
-    // false 를 돌려주면 server.js 가 주소를 지우지 않는다. tools/resend.js 로 다시 보낼 수 있다.
+    // ok:false 면 server.js 가 주소를 지우지 않는다. tools/resend.js 로 다시 보낼 수 있다.
     console.error('[mail] 발송 실패', err.message);
-    return false;
+    return { ok: false, via: path, at, err: String(err.message).slice(0, 300) };
   }
 }
 
@@ -214,7 +214,10 @@ async function send(to, mail) {
 const via = () => (BREVO_KEY ? 'brevo' : RESEND_KEY ? 'resend' : transport ? 'smtp' : 'none');
 
 module.exports = {
-  sendVerdict: (row, o) => send(row.email, verdictMail(row, o)),
+  // 결과 전부 — { ok, via, id, at, err }
+  sendVerdictReport: (row, o) => send(row.email, verdictMail(row, o)),
+  // 나갔는지만
+  sendVerdict: (row, o) => send(row.email, verdictMail(row, o)).then((r) => r.ok),
   verdictMail,
   enabled: () => !!BREVO_KEY || !!RESEND_KEY || !!transport,
   via,

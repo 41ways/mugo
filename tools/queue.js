@@ -55,7 +55,15 @@ const span = (ms) => {
       const split = vs.length > 1 && vs[0].verdict !== vs[1].verdict ? '  ← 갈림' : '';
       console.log(`  ${r.name} → ${line}${split}` +
         `  [${read}회 읽힘]  ${span(now - Number(r.judged_at))} 전` +
-        `  ${r.email ? '통지 대기' : '주소 삭제됨'}`);
+        `  ${r.email ? '주소 남음' : '주소 삭제됨'}`);
+      // 통지마다 나갔는지. Brevo 로 나간 메일은 Gmail 보낸편지함에 없으니 여기서 본다.
+      vs.slice(0, 2).forEach((v, i) => {
+        const m = v.mail;
+        const what = !m ? '기록 없음 (이 기능 전의 판결)'
+          : m.ok ? `나감 · ${m.via}${m.id ? ' · ' + m.id : ''}`
+          : `못 나감 · ${m.err || '사유 모름'}`;
+        console.log(`      ${i + 1}번째 통지 — ${what}`);
+      });
     });
     console.log('');
   }
