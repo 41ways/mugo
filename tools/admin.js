@@ -41,6 +41,12 @@ const mask = (e) => {
   const [id, host] = String(e).split('@');
   return host ? `${id.slice(0, 2)}${'*'.repeat(Math.max(1, id.length - 2))}@${host}` : '***';
 };
+// 진술한 사람이 결과를 들여다봤는지 — 메일이 안 갔어도 받았는지 알 수 있게
+const looked = (r, now) => {
+  if (!r.looked_at) return '결과 안 봄';
+  const when = span(now - Number(r.looked_at));
+  return Number(r.looked_count) > 0 ? `결과 확인함 · ${when} 전` : `판결 전에만 들여다봄 · ${when} 전`;
+};
 const judgedCount = (r) => (r.judged_count != null ? r.judged_count : (r.judged_at ? 1 : 0));
 const isParked = (r, now) => Number(r.claimed_at || 0) > now + PARK_MS;
 
@@ -87,10 +93,12 @@ async function list(store) {
       const vs = listOf(r.verdicts);
       const line = vs.map((v, i) => {
         const m = v.mail;
-        const mail = i >= 2 ? '' : !m ? ' [통지 기록 없음]' : m.ok ? ' [통지 나감]' : ' [통지 못 나감]';
+        const mail = i >= 2 ? '' : !m ? ' [통지 기록 없음]'
+          : m.skipped === 'no-address' ? ' [주소 없음]' : m.skipped ? ' [통지 두 통 끝]'
+          : m.ok ? ' [통지 나감]' : ' [통지 못 나감]';
         return `${v.verdict === 'guilty' ? '유죄' : '무죄'}(${v.judge_name || '?'})${mail}`;
       }).join('  ·  ');
-      console.log(`  ${r.name.padEnd(8)} #${r.id.slice(0, 6)}  ${line}  · 주소 ${r.email ? '남음' : '지워짐'}`);
+      console.log(`  ${r.name.padEnd(8)} #${r.id.slice(0, 6)}  ${line}  · 주소 ${r.email ? '남음' : '지워짐'}  · ${looked(r, now)}`);
     });
   }
 

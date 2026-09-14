@@ -133,7 +133,9 @@ async function apiVerdict(req, res) {
 
   // 나갔는지·어느 길로·받은 쪽 번호·실패 사유를 그 판결 옆에 남긴다.
   // Brevo 로 나간 메일은 Gmail 보낸편지함에 없으니, 나중에 확인할 곳이 여기뿐이다.
-  if (report) await store.markMailed(row.id, seen, report).catch((e) => console.error('[mail] 기록 실패', e.message));
+  // 보낼 대상이 아니었던 것도 적는다 — 「기록 없음」이 옛 판결인지 주소가 없던 건지 헷갈리지 않게
+  const note = report || { ok: false, at: Date.now(), skipped: row.email ? 'limit' : 'no-address' };
+  await store.markMailed(row.id, seen, note).catch((e) => console.error('[mail] 기록 실패', e.message));
 
   // 주소는 마지막 통지가 실제로 나간 다음에 지운다. 실패했는데 지우면
   // 다시 보낼 길이 영영 없어지고, 첫 통에 지우면 둘째 통을 못 보낸다.
@@ -177,10 +179,27 @@ async function apiStatement(req, res) {
   json(res, 200, { token: saved.token, queued: pending, mail: !!saved.email && mailer.enabled() });
 }
 
+// 이 브라우저로 낸 가장 최근 진술. 다시 들어온 사람에게 「○○님이신가요?」를 물을지 정할 때 쓴다.
+// 플레이어 번호는 브라우저마다 따로 만든 긴 무작위 값이라, 남의 번호로 남의 판결을 볼 수는 없다.
+async function apiMine(req, res) {
+  const body = await readBody(req);
+  const player = clip(body.player, 64);
+  const row = player ? await store.latestOf(player) : null;
+  if (!row) return json(res, 200, { found: false });
+  json(res, 200, {
+    found: true,
+    name: row.name,
+    token: row.token,
+    judged: listOf(row.verdicts).length > 0 || !!row.judged_at,
+  });
+}
+
 // 내 판결이 나왔는지 직접 확인한다.
 async function apiLookup(res, token) {
   const row = await store.byToken(clip(token, 64));
   if (!row) return json(res, 404, { error: '그런 진술서는 없다' });
+  // 들여다봤다는 것만 적는다. 운영하는 쪽이 「결과를 받았나」를 볼 수 있게.
+  await store.markLooked(row.id, listOf(row.verdicts).length).catch((e) => console.error('[조회 기록 실패]', e.message));
   json(res, 200, {
     name: row.name,
     answers: typeof row.answers === 'string' ? JSON.parse(row.answers) : row.answers,
@@ -252,6 +271,7 @@ async function route(req, res) {
       if (req.method === 'POST' && p === '/api/case') return await apiCase(req, res);
       if (req.method === 'POST' && p === '/api/verdict') return await apiVerdict(req, res);
       if (req.method === 'POST' && p === '/api/statement') return await apiStatement(req, res);
+      if (req.method === 'POST' && p === '/api/mine') return await apiMine(req, res);
       if (req.method === 'GET' && p.startsWith('/api/statement/')) {
         return await apiLookup(res, decodeURIComponent(p.slice('/api/statement/'.length)));
       }

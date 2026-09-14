@@ -60,6 +60,8 @@ const span = (ms) => {
       vs.slice(0, 2).forEach((v, i) => {
         const m = v.mail;
         const what = !m ? '기록 없음 (이 기능 전의 판결)'
+          : m.skipped === 'no-address' ? '주소를 안 적어 보내지 않음'
+          : m.skipped ? '두 통을 이미 보내 더 보내지 않음'
           : m.ok ? `나감 · ${m.via}${m.id ? ' · ' + m.id : ''}`
           : `못 나감 · ${m.err || '사유 모름'}`;
         console.log(`      ${i + 1}번째 통지 — ${what}`);

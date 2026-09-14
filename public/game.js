@@ -1373,6 +1373,56 @@
     edge();
   }
 
+  /* ── 돌아온 사람 — 「○○님이신가요?」 ─────────────────── */
+
+  // 이 브라우저로 낸 가장 최근 진술에 판결이 났으면 이름으로 묻는다. 조서 하나에 딱 한 번 —
+  // 판결문을 읽든 아니라고 하든 그 조서로는 다시 묻지 않는다. 다른 브라우저에서 온 사람에게는
+  // 플레이어 번호가 달라 아무것도 뜨지 않는다. 이 브라우저로 새로 한 판을 끝내면 그 사람 진술이
+  // 「가장 최근」이 되므로, 다음부터는 그 이름으로 묻는다.
+  const ASKED = 'mugo.asked';
+  const askedTokens = () => { try { return JSON.parse(localStorage.getItem(ASKED) || '[]'); } catch { return []; } };
+  const markAsked = (token) => {
+    try { localStorage.setItem(ASKED, JSON.stringify(askedTokens().concat([token]).slice(-20))); } catch { /* 사생활 모드 */ }
+  };
+
+  // 물었고 판결문을 읽으러 갔으면 true — 그 경우 여기서 페이지를 옮기므로 부르는 쪽은 멈춘다
+  async function askReturning() {
+    let me;
+    try {
+      me = await Promise.race([
+        api('/api/mine', { player: state.player }),
+        new Promise((_, no) => setTimeout(() => no(new Error('늦다')), 5000)),   // 늦으면 묻지 않고 넘어간다
+      ]);
+    } catch { return false; }
+    if (!me || !me.found || !me.judged || askedTokens().includes(me.token)) return false;
+
+    wipe();
+    stage.classList.add('mid');
+    const unnamed = /말하지 않았다|^\s*$/.test(me.name || '');
+    const who = unnamed ? '지난번에 이 브라우저로 진술하신 분' : `${me.name}님`;
+    const box = addLine(el('div', 'title returning'));
+    box.innerHTML =
+      `<p class="ask-who">${esc(who)}이신가요?</p>` +
+      `<p class="gloss">당신의 진술에 대한 판결이 도착했습니다.</p>`;
+
+    const foot = setFoot(el('div'));
+    foot.style.cssText = 'display:flex;flex-direction:column;gap:12px;align-items:center';
+    const row = foot.appendChild(el('div', 'row'));
+    row.style.justifyContent = 'center';
+    const read = row.appendChild(el('button', 'btn', '판결문 읽기'));
+    const notMe = row.appendChild(el('button', 'btn ghost',
+      unnamed ? '저는 아닙니다' : `저는 ${esc(me.name)}${josa(me.name, '이/가')} 아닙니다`));
+    foot.appendChild(el('p', 'once-note',
+      '이 질문은 한 번만 드립니다. 어느 쪽을 고르든 다시 묻지 않습니다.<br>' +
+      '판결문은 게임 마지막에 받은 조서 번호 링크로 언제든 다시 볼 수 있습니다.'));
+
+    const pick = await new Promise((r) => { read.onclick = () => r(true); notMe.onclick = () => r(false); });
+    markAsked(me.token);
+    if (pick) { location.href = location.pathname + '?t=' + encodeURIComponent(me.token); return true; }
+    stage.classList.remove('mid');
+    return false;
+  }
+
   /* ── 판결 확인 페이지 ───────────────────────────────── */
 
   async function lookup(token) {
@@ -1448,6 +1498,9 @@
   async function main() {
     const t = new URLSearchParams(location.search).get('t');
     if (t) return lookup(t);
+
+    // 이 브라우저로 진술했던 사람이 돌아왔고 판결이 났으면, 한 번만 묻는다
+    if (await askReturning()) return;
 
     await titleScreen();
 

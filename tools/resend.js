@@ -44,7 +44,7 @@ const mask = (e) => {
     const vs = listOf(r.verdicts);
     const failed = vs.slice(0, MAX_MAILS)
       .map((v, i) => ({ v, nth: i + 1 }))
-      .filter(({ v }) => v.mail && v.mail.ok === false);
+      .filter(({ v }) => v.mail && v.mail.ok === false && !v.mail.skipped);   // 애초에 보낼 대상이 아니던 건 뺀다
     if (failed.length) failed.forEach(({ nth }) => jobs.push({ row: r, nth }));
     else if (vs.length >= MAX_MAILS && !vs[MAX_MAILS - 1].mail) jobs.push({ row: r, nth: MAX_MAILS });
   }

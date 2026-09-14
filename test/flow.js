@@ -181,6 +181,20 @@ const done = (code) => { if (srv) srv.kill(); fs.rmSync(dir, { recursive: true, 
   assert.equal(twice.token, once.token, '같은 번호면 같은 조서 번호를 돌려준다');
   assert.equal(after, before + 1, '같은 번호면 한 번만 들어간다');
 
+  // 다시 들어온 사람 — 이 브라우저(플레이어 번호)로 낸 가장 최근 진술을 찾는다
+  const mineA = await post('/api/mine', { player: 'A' });
+  assert.equal(mineA.found, true);
+  assert.equal(mineA.token, a.token, 'A 가 낸 진술');
+  assert.equal(mineA.judged, true, '판결이 났다');
+  const mineX = await post('/api/mine', { player: 'nobody-here' });
+  assert.equal(mineX.found, false, '다른 브라우저에서 온 사람에게는 찾을 게 없다');
+
+  // 결과를 들여다보면 그때가 적힌다 — 메일이 아니어도 받았는지 알 수 있게
+  await get('/api/statement/' + a.token);
+  const lookedRow = JSON.parse(fs.readFileSync(path.join(dir, 'statements.json'), 'utf8')).find((r) => r.token === a.token);
+  assert.ok(lookedRow.looked_at, '들여다본 때가 남는다');
+  assert.ok(lookedRow.looked_count > 0, '판결이 난 뒤에 봤다');
+
   // 없는 번호
   const [nf] = await get('/api/statement/deadbeef');
   assert.equal(nf, 404);
