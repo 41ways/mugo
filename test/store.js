@@ -77,6 +77,58 @@ const row = (player, name) => ({
   const forP12 = await s.claim('p12');
   assert.ok(forP12, '자리가 다 차도 실제 조서를 다시 준다');
 
+  // 동시에 들어오면 — 안 읽힌 조서 하나를 누가 붙들고 있을 때, 뒷사람은 이미 판결 끝난
+  // 옛 조서가 아니라 그 안 읽힌 조서를 같이 받는다.
+  {
+    const keep = process.env.DATA_DIR;
+    const dirT = fs.mkdtempSync(path.join(os.tmpdir(), 'mugo-t-'));
+    process.env.DATA_DIR = dirT;
+    const t = await openStore();
+    const now = Date.now();
+    const old1 = await t.insert({ ...row('q1', '옛조서'), created_at: now - 9e6 });
+    await t.claim('q2');                                             // 옛조서를 누가 받아
+    await t.judge(old1.id, { verdict: 'guilty', judge_name: '갑', judged_by: 'q2' });  // 판결까지 끝냄
+    const fresh = await t.insert({ ...row('q3', '새조서'), created_at: now - 1e3 });
+    const first = await t.claim('q4');
+    assert.equal(first.id, fresh.id, '먼저 온 사람은 안 읽힌 새 조서');
+    const second = await t.claim('q5');
+    assert.equal(second.id, fresh.id, '동시에 온 사람도 같은 새 조서 — 판결 끝난 옛 조서로 가지 않는다');
+    fs.rmSync(dirT, { recursive: true, force: true });
+    process.env.DATA_DIR = keep;
+  }
+
+  // 운영 규칙 그대로 한 바퀴 — 대기열에 서혁인 하나
+  //   A·B 가 동시에 → 둘 다 서혁인. 각자 판결하고 먼저 끝낸 순으로 대기열 1·2
+  //   그다음 C·D 가 동시에 → 대기열이 둘이니 C 는 1번, D 는 2번
+  {
+    const keep = process.env.DATA_DIR;
+    const dirQ = fs.mkdtempSync(path.join(os.tmpdir(), 'mugo-q-'));
+    process.env.DATA_DIR = dirQ;
+    const q = await openStore();
+    const base = Date.now() - 1e7;
+    const seo = await q.insert({ ...row('seo', '서혁인'), created_at: base });
+
+    const forA = await q.claim('A');
+    const forB = await q.claim('B');
+    assert.equal(forA.id, seo.id, 'A 는 서혁인');
+    assert.equal(forB.id, seo.id, '동시에 온 B 도 서혁인');
+
+    await q.judge(seo.id, { verdict: 'guilty', judge_name: 'A탐정', judged_by: 'A' });
+    const stA = await q.insert({ ...row('A', 'A의 진술'), created_at: base + 1000 });   // A 가 먼저 끝냄
+    await q.judge(seo.id, { verdict: 'innocent', judge_name: 'B탐정', judged_by: 'B' });
+    const stB = await q.insert({ ...row('B', 'B의 진술'), created_at: base + 2000 });   // B 는 나중
+
+    assert.equal((await q.byId(seo.id)).judged_count, 2, '서혁인은 두 판결을 받는다');
+
+    const forC = await q.claim('C');
+    const forD = await q.claim('D');
+    assert.equal(forC.id, stA.id, 'C 는 대기열 1번 — 먼저 끝낸 A 의 진술');
+    assert.equal(forD.id, stB.id, 'D 는 대기열 2번 — B 의 진술');
+
+    fs.rmSync(dirQ, { recursive: true, force: true });
+    process.env.DATA_DIR = keep;
+  }
+
   // 주소는 보내고 나면 지운다
   await s.clearEmail(a.id);
   assert.equal((await s.byId(a.id)).email, null);

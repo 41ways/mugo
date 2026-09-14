@@ -51,17 +51,24 @@ const taken = (row, now, me) =>
 
 // 누구에게 무엇을 줄까.
 //   1순위 — 아무도 아직 안 건드린 조서. 한 사람에 한 조서가 기본이다.
-//   2순위 — 그런 게 없으면, 덜 읽힌 것부터 다시 돌린다. 상한은 없다.
+//   2순위 — 그런 게 없는데 아직 판결 안 난 조서를 누가 읽고 있다면, 그걸 같이 준다.
+//           여럿이면 지금 덜 붙들린 쪽부터.
+//           동시에 들어온 사람들이 같은 조서를 나눠 읽는 경우다. 이미 판결 끝난
+//           옛 조서로 돌리는 것보다, 지금 기다리는 사람에게 판결이 하나 더 가는 편이 낫다.
+//   3순위 — 그것도 없으면 덜 읽힌 것부터 다시 돌린다. 상한은 없다.
 //           지어낸 조서를 주면 그 판은 아무와도 안 엮이므로, 그것보다는 낫다.
 //   줄 사람이 정말 하나도 없을 때만 null — 그때야 지어낸 조서로 간다.
 //
-// 두 순위 모두 플레이가 먼저 끝난 순서다. 조서는 판이 끝날 때 만들어지므로
+// 모두 플레이가 먼저 끝난 순서다. 조서는 판이 끝날 때 만들어지므로
 // created_at 이 곧 끝난 순서고, 덜 읽힌 것부터 세우면 앞에서부터 한 바퀴씩 돈다.
 function choose(rows, now, me) {
   const line = rows
     .filter((r) => !parked(r, now) && r.player !== me && !judgedBy(r, me))
     .sort((a, b) => a.created_at - b.created_at);
+  const judged = (r) => (r.judged_count != null ? r.judged_count : (r.judged_at ? 1 : 0));
   return line.find((r) => taken(r, now, me) === 0)
+      // 여럿이면 지금 덜 붙들린 쪽부터 — 판결이 한 조서에 몰리지 않고 고르게 난다
+      || line.filter((r) => judged(r) === 0).sort((a, b) => taken(a, now, me) - taken(b, now, me))[0]
       || line.slice().sort((a, b) => taken(a, now, me) - taken(b, now, me))[0]
       || null;
 }
