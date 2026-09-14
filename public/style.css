@@ -355,12 +355,6 @@ body.blind #vignette{background:radial-gradient(80% 60% at 50% 50%, rgba(0,0,0,.
 
 /* ── 판결·결말 ──────────────────────────────────────── */
 
-.verdictbig{
-  text-align:center; font-size:clamp(46px,13vw,86px); font-weight:700; letter-spacing:.14em;
-  margin:34px 0 8px; text-indent:.14em;
-}
-.verdictbig.guilty{color:var(--blood); text-shadow:0 0 50px rgba(125,28,20,.4)}
-.verdictbig.innocent{color:var(--cold); text-shadow:0 0 50px rgba(93,122,128,.3)}
 
 .hood{
   position:fixed; inset:0; background:#000; z-index:65; opacity:0; pointer-events:none;
@@ -779,4 +773,183 @@ body.in-scene #corner, body.slow #corner{display:none}
 }
 .once-note{
   margin:4px 0 0; text-align:center; font-size:12.5px; line-height:1.8; color:var(--faint); max-width:36em;
+}
+
+/* ═══ 판결 통지 — 봉투를 뜯어 통지서를 읽는다 ═══════════════════ */
+
+.notice{
+  position:fixed; inset:0; z-index:70; overflow:hidden;
+  background:#15120e; color:#231f1a; font-family:var(--serif);
+  opacity:0; transition:opacity .8s ease-out;
+}
+.notice.on{opacity:1}
+/* 등불 하나가 종이 위에 고인다 — 어둡기만 하지 않게 */
+.notice-light{
+  position:absolute; inset:0; pointer-events:none;
+  background:
+    radial-gradient(70% 55% at 50% 34%, rgba(236,196,128,.30), rgba(236,196,128,.08) 55%, transparent 80%),
+    radial-gradient(140% 100% at 50% 110%, rgba(0,0,0,.55), transparent 60%);
+  transition:opacity 1.6s ease, filter 1.6s ease;
+}
+/* 뜸 — 가장자리가 조여 들고 빛이 줄어든다.
+   큰 흐림 그림자는 좁은 화면에서 줄무늬로 깨져서, 그라데이션을 겹쳐 투명도로 켠다. */
+.notice::before, .notice::after{
+  content:''; position:absolute; inset:0; pointer-events:none; z-index:3; opacity:0;
+}
+.notice::before{
+  background:radial-gradient(ellipse 75% 70% at 50% 45%, transparent 40%, rgba(0,0,0,.78) 100%);
+  transition:opacity 2.2s ease;
+}
+.notice::after{
+  background:radial-gradient(ellipse 72% 68% at 50% 45%, transparent 36%, rgba(40,4,2,.9) 100%);
+  transition:opacity 3s ease;
+}
+.notice.hush::before{opacity:1}
+.notice.hush .notice-light{opacity:.55}
+.notice.impact::after, .notice.after-guilty::after{opacity:1}
+.notice.impact::after{transition:opacity .25s ease-in}
+.notice.relief .notice-light, .notice.after-innocent .notice-light{opacity:1; filter:brightness(1.25)}
+
+.notice-flash{
+  position:absolute; inset:0; z-index:4; pointer-events:none; opacity:0;
+  background:radial-gradient(62% 56% at 50% 45%, rgba(200,34,20,.26), rgba(120,10,6,.8));
+  transition:opacity .75s ease-out;
+}
+.notice-flash.on{opacity:1; transition:opacity .06s ease-in}
+
+.notice-stage{
+  position:absolute; inset:0; z-index:2; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  display:flex; flex-direction:column; align-items:center;
+  padding:clamp(26px,8vh,80px) 16px 48px; gap:22px;
+}
+.notice.impact .notice-stage{animation:quake .5s cubic-bezier(.36,.07,.19,.97) both}
+@keyframes quake{
+  10%,90%{transform:translate3d(-2px,1px,0)} 20%,80%{transform:translate3d(5px,-2px,0)}
+  30%,50%,70%{transform:translate3d(-9px,3px,0)} 40%,60%{transform:translate3d(9px,-3px,0)}
+}
+
+.notice-btn{opacity:0; transform:translateY(8px); transition:opacity .5s, transform .5s}
+.notice-btn.on{opacity:1; transform:none}
+
+/* 봉투 */
+.env{
+  position:relative; width:min(340px, 84vw); aspect-ratio:1.6; margin-top:clamp(20px,10vh,90px);
+  opacity:0; transform:translateY(-26px) rotate(-2deg);
+  transition:opacity .7s ease, transform .8s cubic-bezier(.2,.8,.25,1);
+  perspective:900px;
+}
+.env.on{opacity:1; transform:rotate(-1.2deg)}
+.env-body{
+  position:absolute; inset:0; border-radius:3px;
+  background:linear-gradient(170deg,#efe5cf,#ddd0b3); box-shadow:0 22px 50px rgba(0,0,0,.55);
+  display:flex; flex-direction:column; justify-content:flex-end; align-items:center;
+  padding:0 18px 18px; text-align:center; line-height:1.35;
+}
+.env-from{font-family:var(--mono); font-size:10.5px; letter-spacing:.3em; color:#8a7c66}
+.env-to{margin:6px 0 4px; font-size:clamp(19px,5vw,23px); color:#231f1a; font-weight:700}
+.env-kind{font-size:12.5px; color:#6d6252; letter-spacing:.08em}
+.env-flap{
+  position:absolute; left:0; right:0; top:0; height:40%;
+  background:linear-gradient(180deg,#e6dbc2,#d6c7a6);
+  clip-path:polygon(0 0,100% 0,50% 100%); transform-origin:top center;
+  transition:transform .6s cubic-bezier(.5,0,.3,1);
+  filter:drop-shadow(0 3px 2px rgba(0,0,0,.18));
+}
+.env-seal{
+  position:absolute; left:50%; top:40%; width:44px; height:44px; margin:-22px 0 0 -22px;
+  border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:radial-gradient(circle at 38% 34%, #b8392a, #7d1c14 62%, #5a120c);
+  box-shadow:0 3px 8px rgba(0,0,0,.4), inset 0 -2px 4px rgba(0,0,0,.35);
+  color:rgba(255,220,200,.72); font-size:18px; font-weight:700;
+  transition:transform .45s ease, opacity .45s ease;
+}
+.env.open .env-flap{transform:rotateX(180deg)}
+.env.open .env-seal{transform:scale(1.3) rotate(18deg); opacity:0}
+.env.out{opacity:0; transform:translateY(60px) rotate(2deg) scale(.96); transition:opacity .5s ease, transform .6s ease}
+
+/* 통지서 */
+.sheet{
+  width:min(560px, 92vw); position:relative;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.35), transparent 18%),
+    linear-gradient(175deg,#f3ebda,#e6dac0);
+  box-shadow:0 30px 70px rgba(0,0,0,.6), 0 0 0 1px rgba(80,60,30,.08);
+  border-radius:2px; padding:clamp(24px,5vw,40px) clamp(20px,5vw,40px) 26px;
+  opacity:0; transform:translateY(90px) scale(.95);
+  transition:opacity .8s ease, transform 1s cubic-bezier(.16,.84,.3,1);
+}
+.sheet.on{opacity:1; transform:none}
+.sheet.gone{opacity:0; transform:translateY(-60px) rotate(-1.5deg); transition:opacity .5s, transform .6s}
+.sh-part, .sheet .sh-body p{opacity:0; transform:translateY(6px); transition:opacity .6s ease, transform .6s ease}
+.sh-part.on, .sheet .sh-body p.on{opacity:1; transform:none}
+
+.sh-head{
+  display:flex; justify-content:space-between; gap:12px; padding-bottom:12px; margin-bottom:16px;
+  border-bottom:1px solid #cdbf9f;
+  font-family:var(--mono); font-size:11px; letter-spacing:.28em; color:#8a7c66;
+}
+.sh-meta{margin:0 0 18px; display:grid; gap:6px}
+.sh-meta div{display:grid; grid-template-columns:4.2em 1fr; gap:12px; align-items:baseline}
+.sh-meta dt{font-family:var(--mono); font-size:11px; letter-spacing:.2em; color:#8a7c66}
+.sh-meta dd{margin:0; font-size:16px; color:#231f1a}
+
+.sh-order{display:flex; align-items:center; gap:14px; padding-top:14px; border-top:1px solid #cdbf9f}
+.sh-label{font-family:var(--mono); font-size:11px; letter-spacing:.3em; color:#8a7c66}
+.sh-dots{display:flex; gap:9px}
+.sh-dots i{width:6px; height:6px; border-radius:50%; background:#3a3128; opacity:0; transform:scale(.4); transition:opacity .35s, transform .35s}
+.sh-dots i.on{opacity:.75; transform:none}
+
+/* 판결 도장 */
+.sh-verdict{display:flex; justify-content:center; margin:18px 0 8px; min-height:clamp(96px,22vw,132px); align-items:center}
+.sh-verdict span{
+  display:inline-block; opacity:0;
+  font-size:clamp(58px,17vw,96px); font-weight:700; letter-spacing:.16em; text-indent:.16em; line-height:1;
+  padding:.1em .28em .14em; border:6px double currentColor; border-radius:6px;
+}
+.sh-verdict.guilty span{color:#9a2418; text-shadow:0 0 1px rgba(154,36,24,.4)}
+.sh-verdict.innocent span{color:#3f5448}
+.sh-verdict.slam span{animation:slam .26s cubic-bezier(.7,0,.84,0) forwards}
+@keyframes slam{
+  0%{opacity:0; transform:scale(3.2) rotate(-14deg); filter:blur(3px)}
+  70%{opacity:1; transform:scale(.94) rotate(-6deg); filter:none}
+  100%{opacity:1; transform:scale(1) rotate(-7deg)}
+}
+.sh-verdict.press span{animation:press .7s cubic-bezier(.2,.7,.3,1) forwards}
+@keyframes press{
+  0%{opacity:0; transform:scale(1.35) rotate(-2deg)}
+  100%{opacity:.92; transform:scale(1) rotate(-3deg)}
+}
+
+.sh-body{display:flex; flex-direction:column; gap:10px; margin:10px 0 4px}
+.sh-body p{margin:0; font-size:16px; line-height:1.85; color:#2a241d}
+.sh-body .sh-sentence{font-size:clamp(22px,6vw,28px); font-weight:700; color:#7d1c14; letter-spacing:.04em; margin-bottom:2px}
+.sh-body .sh-sentence.calm{color:#3f5448}
+.sh-body .sh-quiet{color:#6d6252; font-size:15px}
+
+.sh-reason{
+  margin:22px 0 0; padding:14px 16px; border-left:3px solid #a08a5e;
+  background:rgba(160,138,94,.09);
+}
+.sh-reason span{display:block; margin-bottom:6px; font-family:var(--mono); font-size:10.5px; letter-spacing:.28em; color:#8a7c66}
+.sh-reason p{margin:0; font-size:clamp(16px,4.4vw,18px); line-height:1.75; color:#231f1a}
+.sh-foot{margin-top:22px; text-align:right; font-family:var(--mono); font-size:11px; letter-spacing:.3em; color:#8a7c66}
+
+.notice-lines{width:min(560px,92vw); display:flex; flex-direction:column; gap:8px; text-align:center}
+.notice-line{
+  margin:0; color:#e9e0cd; font-size:15.5px; line-height:1.9;
+  opacity:0; transform:translateY(6px); transition:opacity .8s, transform .8s;
+  text-shadow:0 1px 12px rgba(0,0,0,.6);
+}
+.notice-line.on{opacity:1; transform:none}
+
+.notice-end{
+  width:min(560px,92vw); display:flex; flex-direction:column; align-items:center; gap:14px; margin-top:6px;
+  opacity:0; transition:opacity .9s ease;
+}
+.notice-end.on{opacity:1}
+.notice-end .credit{justify-content:center; color:#a89c85}
+
+@media (prefers-reduced-motion:reduce){
+  .notice.impact .notice-stage{animation:none}
+  .sh-verdict.slam span, .sh-verdict.press span{animation:none; opacity:1; transform:rotate(-5deg)}
 }

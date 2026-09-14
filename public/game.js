@@ -1425,65 +1425,166 @@
 
   /* ── 판결 확인 페이지 ───────────────────────────────── */
 
+  // 판결 통지. 법원에서 온 봉투를 뜯어 통지서를 꺼내 읽는 장면으로 보여준다.
+  // 줄글을 넘기는 게임 화면과 달리, 뜸을 들이고 도장을 찍는 연출이 전부라 따로 그린다.
   async function lookup(token) {
     clear();
+    const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const pause = (ms) => wait(calm ? Math.min(ms, 250) : ms);
+
+    const root = document.body.appendChild(el('div', 'notice'));
+    root.appendChild(el('div', 'notice-light'));
+    const flash = root.appendChild(el('div', 'notice-flash'));
+    const stage = root.appendChild(el('div', 'notice-stage'));
+    requestAnimationFrame(() => root.classList.add('on'));
+    corner.hidden = true;
+
+    const button = (label, cls = 'btn') => new Promise((resolve) => {
+      const b = stage.appendChild(el('button', `${cls} notice-btn`, esc(label)));
+      requestAnimationFrame(() => b.classList.add('on'));
+      b.onclick = () => { b.remove(); resolve(); };
+    });
+    const endButtons = () => {
+      const f = stage.appendChild(el('div', 'notice-end'));
+      const b = f.appendChild(el('button', 'btn', '처음으로'));
+      b.onclick = () => { location.href = location.pathname; };
+      f.appendChild(footerNode());
+      requestAnimationFrame(() => f.classList.add('on'));
+    };
+
     let r;
     try { r = await api('/api/statement/' + encodeURIComponent(token)); }
     catch {
-      await say([{ c: '조서 조회' }, { s: '그런 조서는 없다. 번호를 다시 보시오.' }], { silent: true });
-      return backLink();
+      stage.appendChild(el('p', 'notice-line on', '그런 조서는 없다. 번호를 다시 보시오.'));
+      return endButtons();
     }
 
-    const days = Math.floor(r.waited / 86400000);
-    const hours = Math.floor(r.waited / 3600000) % 24;
-    const held = days ? `${days}일 ${hours}시간째` : `${hours}시간째`;
+    const list = !r.judged ? [] : (r.verdicts && r.verdicts.length)
+      ? r.verdicts : [{ verdict: r.verdict, reason: r.reason, judgeName: r.judgeName }];
 
-    if (!r.judged) {
-      await say([
-        { c: '조서 조회' },
-        { s: `${r.name}. 당신의 조서는 아직 봉해진 채다. ${held} 기다리는 중이다.` },
-        { s: '다음에 회항에 들어오는 사람이 이걸 읽는다. 언제 올지는 아무도 모른다.' },
-      ], { silent: true });
-      return backLink();
+    // 봉투
+    const env = stage.appendChild(el('div', 'env',
+      `<div class="env-body"><span class="env-from">회항 지방법원</span>` +
+      `<b class="env-to">${esc(r.name)} 앞</b>` +
+      `<span class="env-kind">${list.length ? (list.length > 1 ? '판결 통지 · 두 통' : '판결 통지') : '봉해진 조서'}</span></div>` +
+      `<div class="env-flap"></div><div class="env-seal"><i>회</i></div>`));
+    await pause(700);
+    env.classList.add('on');
+    await pause(900);
+
+    // 아직 판결 전 — 봉투는 열리지 않는다
+    if (!list.length) {
+      const note = stage.appendChild(el('div', 'notice-lines'));
+      [`${r.name}. 당신의 조서는 아직 봉해진 채다.`,
+        '다음에 회항에 들어오는 탐정이 이 조서를 읽는다. 언제 올지는 아무도 모른다.']
+        .forEach((t) => note.appendChild(el('p', 'notice-line', esc(t))));
+      for (const p of note.children) { p.classList.add('on'); await pause(700); }
+      return endButtons();
     }
 
-    // 회항은 조서 하나를 두 사람에게 읽힌다. 온 만큼 다 보여준다.
-    const list = (r.verdicts && r.verdicts.length)
-      ? r.verdicts
-      : [{ verdict: r.verdict, reason: r.reason, judgeName: r.judgeName }];
+    await button('봉투를 뜯는다');
+    env.classList.add('open');
+    await pause(650);
+    env.classList.add('out');
+    await pause(500);
+    env.remove();
 
+    const flipped = list.length > 1 && list.some((v) => v.verdict !== list[0].verdict);
     for (let i = 0; i < list.length; i++) {
-      const v = list[i];
-      const g = v.verdict === 'guilty';
-      clear();
-      const ORD = ['', '첫', '두', '세', '네', '다섯', '여섯'];
-      if (list.length > 1) addLine(el('p', 'say whisper', words(`${ORD[i + 1] || (i + 1)} 번째 판결`)));
-      addLine(el('div', 'verdictbig ' + (g ? 'guilty' : 'innocent'), g ? '유죄' : '무죄'));
+      await sheet(list[i], i);
+      if (i < list.length - 1) {
+        await button('다음 통지를 편다', 'btn ghost');
+        const prev = stage.querySelector('.sheet:not(.gone)');
+        prev.classList.add('gone');
+        await pause(600);
+        prev.remove();
+      }
+    }
 
-      await say(g ? [
-        { s: `${r.name}. 재판은 열렸고, 십일 분 걸렸다.` },
-        { s: `탐정 ${v.judgeName}${josa(v.judgeName, '이/가')} 당신의 진술을 읽었다.` },
-        { s: '선고는 사형이었다. 회항에는 상소할 곳이 없다.' },
-        { s: '당신은 그 자리에서 끌려 나갔고, 형은 그날 부두 창고 앞 광장에서 곧바로 집행됐다. 안개가 짙어 구경꾼은 많지 않았다.' },
+    if (flipped) {
+      const note = stage.appendChild(el('div', 'notice-lines'));
+      ['같은 조서를 읽고 서로 반대에 닿은 사람들이 있다.', '회항에는 그 둘을 맞춰줄 사람이 없다. 두 판결은 그냥 나란히 남는다.']
+        .forEach((t) => note.appendChild(el('p', 'notice-line', esc(t))));
+      await pause(600);
+      for (const p of note.children) { p.classList.add('on'); await pause(900); }
+    }
+    endButtons();
+
+    // 통지서 한 장 — 한 줄씩 올라오다, 주문에서 숨을 멈추고, 도장이 떨어진다
+    async function sheet(v, i) {
+      const guilty = v.verdict === 'guilty';
+      const judge = v.judgeName || '이름을 밝히지 않은 탐정';
+      const paper = stage.appendChild(el('article', 'sheet'));
+      paper.innerHTML =
+        `<header class="sh-head sh-part"><span>회항 지방법원</span><span>${i ? '두 번째 판결 통지' : '판결 통지'}</span></header>` +
+        `<dl class="sh-meta">` +
+          `<div class="sh-part"><dt>피고인</dt><dd>${esc(r.name)}</dd></div>` +
+          `<div class="sh-part"><dt>사건</dt><dd>웬들 저택 살인</dd></div>` +
+          `<div class="sh-part"><dt>심리</dt><dd>탐정 ${esc(judge)}</dd></div>` +
+        `</dl>` +
+        `<div class="sh-order sh-part"><span class="sh-label">주문</span><span class="sh-dots"><i></i><i></i><i></i></span></div>` +
+        `<div class="sh-verdict ${guilty ? 'guilty' : 'innocent'}"><span>${guilty ? '유죄' : '무죄'}</span></div>` +
+        `<div class="sh-body"></div>` +
+        (v.reason ? `<blockquote class="sh-reason sh-part"><span>탐정의 소견</span><p>${esc(v.reason)}</p></blockquote>` : '') +
+        `<footer class="sh-foot sh-part">회항 지방법원</footer>`;
+
+      requestAnimationFrame(() => paper.classList.add('on'));
+      await pause(900);
+
+      const parts = [...paper.querySelectorAll('.sh-head, .sh-meta .sh-part, .sh-order')];
+      for (const p of parts) { p.classList.add('on'); await pause(520); }
+
+      // 뜸 — 점이 하나씩 찍히는 동안 방이 조여 온다
+      root.classList.add('hush');
+      for (const d of paper.querySelectorAll('.sh-dots i')) { d.classList.add('on'); await pause(780); }
+      await pause(700);
+
+      const mark = paper.querySelector('.sh-verdict');
+      if (guilty) {
+        mark.classList.add('slam');
+        await pause(calm ? 0 : 170);
+        root.classList.remove('hush');
+        root.classList.add('impact');          // 흔들림 · 붉은 번쩍임 · 가장자리가 닫힌다
+        flash.classList.add('on');
+        await pause(140);
+        flash.classList.remove('on');          // 번쩍임은 한순간. 붉은 기운이 가장자리로 스며든다
+        await pause(1900);                     // 아무것도 오지 않는다. 숨이 멎은 채로
+      } else {
+        mark.classList.add('press');
+        await pause(300);
+        root.classList.remove('hush');
+        root.classList.add('relief');
+        await pause(1100);
+      }
+      mark.scrollIntoView({ block: 'center', behavior: calm ? 'auto' : 'smooth' });
+
+      const body = paper.querySelector('.sh-body');
+      const lines = guilty ? [
+        ['sh-sentence', '선고 — 사형'],
+        ['', '회항에는 상소할 곳이 없다.'],
+        ['', '판결이 떨어지자 당신은 그 자리에서 끌려 나갔다. 형은 그날, 부두 창고 앞 광장에서 곧바로 집행됐다.'],
+        ['sh-quiet', '안개가 짙어 구경꾼은 많지 않았다.'],
       ] : [
-        { s: `${r.name}. 재판은 열리지 않았다.` },
-        { s: `탐정 ${v.judgeName}${josa(v.judgeName, '이/가')} 당신의 진술을 읽었고, 증거가 사람을 목매달 만큼은 아니라고 했다.` },
-        { s: '아무도 사과하지 않았다. 당신은 그날 밤 뒷문으로 나왔다.' },
-      ], { silent: true });
+        ['sh-sentence calm', '석방'],
+        ['', '재판은 열리지 않았다. 증거가 사람을 목매달 만큼은 아니었다.'],
+        ['', '서류에 도장이 찍혔고, 당신은 그날 밤 뒷문으로 나왔다.'],
+        ['sh-quiet', '아무도 사과하지 않았다.'],
+      ];
+      if (i && list[0].verdict !== v.verdict) lines.splice(1, 0, ['sh-quiet', '앞의 판결과 정반대다.']);
+      for (const [cls, t] of lines) {
+        const p = body.appendChild(el('p', cls, esc(t)));
+        requestAnimationFrame(() => p.classList.add('on'));
+        await pause(guilty ? 1100 : 800);
+      }
+      root.classList.remove('impact', 'relief');
+      root.classList.add(guilty ? 'after-guilty' : 'after-innocent');
 
-      if (v.reason) await fileCard('탐정의 소견', `<p class="memo">${esc(v.reason)}</p>`);
-      if (i < list.length - 1) await turn(false);
+      for (const p of paper.querySelectorAll('.sh-reason, .sh-foot')) {
+        p.classList.add('on');
+        p.scrollIntoView({ block: 'nearest', behavior: calm ? 'auto' : 'smooth' });
+        await pause(800);
+      }
     }
-
-    // 둘이 갈렸으면, 아무도 그걸 맞춰주지 않는다는 것까지가 판결이다.
-    if (list.length > 1 && list.some((v) => v.verdict !== list[0].verdict)) {
-      await say([
-        { hr: 1 },
-        { s: '같은 조서를 읽고 서로 반대에 닿은 사람들이 있다.' },
-        { b: '회항에는 그 둘을 맞춰줄 사람이 없다. 두 판결은 그냥 나란히 남는다.' },
-      ], { silent: true });
-    }
-    backLink();
   }
 
   function backLink() {
