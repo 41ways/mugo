@@ -109,7 +109,12 @@ class FileStore {
     return this.writing;
   }
 
+  // 같은 nonce 로 이미 들어온 진술이 있으면 새로 넣지 않고 그것을 돌려준다
   async insert(row) {
+    if (row.nonce) {
+      const same = this.rows.find((r) => r.nonce && r.nonce === row.nonce);
+      if (same) return same;
+    }
     this.rows.push(row);
     await this.flush();
     return row;
@@ -216,6 +221,9 @@ ALTER TABLE statements ADD COLUMN IF NOT EXISTS judged_count INT NOT NULL DEFAUL
 ALTER TABLE statements ADD COLUMN IF NOT EXISTS verdicts JSONB NOT NULL DEFAULT '[]'::jsonb;
 -- 지금 이 조서를 붙들고 있는 사람들. 두 자리까지 동시에 찬다.
 ALTER TABLE statements ADD COLUMN IF NOT EXISTS holds JSONB NOT NULL DEFAULT '[]'::jsonb;
+-- 한 판의 진술에 붙는 고유 번호. 서버가 막 깨어나는 중에 다시 보내도 두 번 들어가지 않게.
+ALTER TABLE statements ADD COLUMN IF NOT EXISTS nonce TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS statements_nonce ON statements (nonce) WHERE nonce IS NOT NULL;
 
 -- 이미 판결이 난 옛 행들을 새 칸으로 옮긴다. 한 번 읽힌 것으로 친다.
 UPDATE statements
@@ -242,13 +250,20 @@ class PgStore {
     return this;
   }
 
+  // 같은 nonce 로 이미 들어온 진술이 있으면 새로 넣지 않고 그것을 돌려준다.
+  // 두 요청이 동시에 와도 유일 색인이 하나만 들이고, 나머지는 먼저 들어간 것을 읽어 온다.
   async insert(row) {
-    await this.pool.query(
-      `INSERT INTO statements (id, token, player, name, answers, clues, email, caught, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    const { rows } = await this.pool.query(
+      `INSERT INTO statements (id, token, player, name, answers, clues, email, caught, created_at, nonce)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       ON CONFLICT (nonce) WHERE nonce IS NOT NULL DO NOTHING
+       RETURNING *`,
       [row.id, row.token, row.player, row.name,
-       JSON.stringify(row.answers), JSON.stringify(row.clues), row.email, row.caught, row.created_at]);
-    return row;
+       JSON.stringify(row.answers), JSON.stringify(row.clues), row.email, row.caught, row.created_at,
+       row.nonce || null]);
+    if (rows[0]) return rows[0];
+    const same = await this.pool.query('SELECT * FROM statements WHERE nonce = $1', [row.nonce]);
+    return same.rows[0];
   }
 
   // 한 방에 고르고 잠근다. 동시에 들어온 두 사람이 같은 진술을 받지 않도록.

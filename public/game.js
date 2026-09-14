@@ -796,6 +796,60 @@
     return res.json();
   }
 
+  // 꼭 닿아야 하는 것(판결·진술)을 보낸다. 무료 서버는 한동안 안 쓰면 잠들고, 배포 때도
+  // 재시작해서 30~60초쯤 응답이 없다. 그 사이에 한 번 보내고 포기하면 그대로 사라진다.
+  // 그래서 연결이 끊기거나 5xx·429 면 간격을 늘려 가며 다시 보낸다(대략 1분 반).
+  // 4xx 는 다시 보내도 같은 답이라 바로 멈춘다. 한 번에 20초 넘게 걸리면 끊고 다시.
+  async function deliver(path, body, { tries = 9, onRetry } = {}) {
+    let pause = 1000, last;
+    for (let n = 0; n < tries; n++) {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 20000);
+      try {
+        const res = await fetch(path, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body), signal: ctl.signal,
+        });
+        clearTimeout(timer);
+        if (res.ok) return res.json();
+        last = Object.assign(new Error(`서버 ${res.status}`), { status: res.status });
+        if (res.status < 500 && res.status !== 429) throw last;   // 다시 보내도 소용없다
+      } catch (e) {
+        clearTimeout(timer);
+        if (e.status && e.status < 500 && e.status !== 429) throw e;
+        last = e;
+      }
+      if (n < tries - 1) {
+        if (onRetry) onRetry(n + 1);
+        await new Promise((r) => setTimeout(r, pause));
+        pause = Math.min(pause * 2, 15000);
+      }
+    }
+    throw last || new Error('보내지 못했다');
+  }
+
+  // 판결 우편함. 보내기 전에 적어 두고, 닿으면 지운다. 끝내 못 보냈으면 다음에 들어올 때
+  // 마저 보낸다 — 서버는 같은 사람의 두 번째 판결을 받지 않으므로 다시 보내도 겹치지 않는다.
+  const OUTBOX = 'mugo.outbox';
+  const outbox = {
+    read() { try { return JSON.parse(localStorage.getItem(OUTBOX) || '[]'); } catch { return []; } },
+    write(list) { try { localStorage.setItem(OUTBOX, JSON.stringify(list)); } catch { /* 사생활 모드 */ } },
+    put(v) { this.write(this.read().filter((x) => x.caseId !== v.caseId).concat([v])); },
+    drop(caseId) { this.write(this.read().filter((x) => x.caseId !== caseId)); },
+  };
+  function sendVerdict(v) {
+    outbox.put(v);
+    return deliver('/api/verdict', v)
+      .then(() => outbox.drop(v.caseId))
+      .catch((e) => {
+        if (e.status && e.status < 500) outbox.drop(v.caseId);   // 서버가 거절한 건 다시 보내도 같다
+        console.error('[판결 전송 실패 — 다음에 들어오면 다시 보낸다]', e);
+      });
+  }
+  function flushOutbox() {
+    outbox.read().forEach((v) => { sendVerdict(v); });
+  }
+
   // 셋째 질문만 갈린다. 부두에서 잡혔으면 흉기가, 저택에서 잡혔으면 현장이 근거가 된다.
   const threeQs = (block, caught) =>
     block.questions.concat([block.third[caught === 'house' ? 'house' : 'dock']]);
@@ -944,11 +998,11 @@
     note(`내가 내린 판결 — ${verdict.v === 'guilty' ? '유죄' : '무죄'}. 「${verdict.reason}」`);
 
 
-    // 판결을 보낸다. 앞사람에게 메일이 나가는 지점.
-    api('/api/verdict', {
+    // 판결을 보낸다. 앞사람에게 메일이 나가는 지점 — 서버가 잠깐 없어도 닿을 때까지 뒤에서 보낸다.
+    sendVerdict({
       caseId: c.caseId, verdict: verdict.v, reason: verdict.reason,
       judgeName: state.name, player: state.player,
-    }).catch(() => {});
+    });
 
     await say(verdict.v === 'guilty' ? S.act2.guilty : S.act2.innocent);
     if (verdict.v === 'guilty') await say(S.act2.doubt);
@@ -1218,13 +1272,15 @@
       player: state.player, name: state.name, answers, clues: journalSummary(),
       caught: state.chased ? 'dock' : 'house', email,
     };
-    // 한 번 실패하면(서버가 막 깨어나는 중 등) 잠깐 뒤에 한 번 더 보낸다
-    for (let tryN = 0; tryN < 2 && !res; tryN++) {
-      try { res = await api('/api/statement', body); }
-      catch (e) {
-        console.error('[진술 제출 실패]', e);
-        if (tryN === 0) await new Promise((r) => setTimeout(r, 2500));
-      }
+    // 서버가 막 깨어나거나 재시작하는 중이면 닿을 때까지 기다렸다 보낸다(대략 1분 반).
+    // 같은 판의 진술엔 같은 번호를 붙여서, 응답만 끊겼다가 다시 보내도 두 번 들어가지 않는다.
+    body.nonce = state.nonce || (state.nonce = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now()));
+    try {
+      res = await deliver('/api/statement', body, {
+        onRetry: () => { hood.textContent = '서기가 조서를 옮겨 적고 있다…'; hood.classList.add('busy'); },
+      });
+    } catch (e) {
+      console.error('[진술 제출 실패]', e);
     }
 
     clear();
@@ -1396,7 +1452,8 @@
     await titleScreen();
 
     // 앞사람 진술은 미리 받아둔다. 2장에서 기다리는 일이 없도록.
-    const casePromise = api('/api/case', { player: state.player })
+    flushOutbox();
+    const casePromise = deliver('/api/case', { player: state.player }, { tries: 5 })
       .catch(() => ({ caseId: 'seed:offline', seed: true, name: '이름을 말하지 않았다',
         answers: ['안 죽였습니다.', '비명이 났으니까요.', '목을 눌렀으니 묻었겠죠.'], clues: [] }));
 

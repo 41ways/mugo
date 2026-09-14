@@ -162,6 +162,7 @@ async function apiStatement(req, res) {
     clues,
     email: isEmail(email) ? email : null,
     caught: body.caught === 'house' ? 'house' : 'dock',
+    nonce: clip(body.nonce, 64) || null,
     created_at: Date.now(),
     claimed_at: null,
     judged_at: null,
@@ -169,11 +170,11 @@ async function apiStatement(req, res) {
     reason: null,
     judge_name: null,
   };
-  await store.insert(row);
-  // 접수증은 보내지 않는다. 메일은 판결 한 통뿐이다.
+  // 같은 판의 진술을 다시 보냈으면(응답만 끊겼던 경우) 새로 넣지 않고 앞의 것을 돌려준다
+  const saved = await store.insert(row);
 
   const { pending } = await store.counts();
-  json(res, 200, { token: row.token, queued: pending, mail: !!row.email && mailer.enabled() });
+  json(res, 200, { token: saved.token, queued: pending, mail: !!saved.email && mailer.enabled() });
 }
 
 // 내 판결이 나왔는지 직접 확인한다.

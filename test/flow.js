@@ -173,6 +173,14 @@ const done = (code) => { if (srv) srv.kill(); fs.rmSync(dir, { recursive: true, 
   const afterGood = JSON.parse(fs.readFileSync(path.join(dir, 'statements.json'), 'utf8'));
   assert.equal(afterGood.find((r) => r.token === good.token).email, 'a.b+c@mail.example.co.kr', '보통 주소는 받는다');
 
+  // 같은 판의 진술을 다시 보내도(응답만 끊겼던 경우) 두 번 들어가지 않는다
+  const before = JSON.parse(fs.readFileSync(path.join(dir, 'statements.json'), 'utf8')).length;
+  const once = await post('/api/statement', { player: 'N1', name: '한번', answers: ['아니오', '', ''], nonce: 'game-123' });
+  const twice = await post('/api/statement', { player: 'N1', name: '한번', answers: ['아니오', '', ''], nonce: 'game-123' });
+  const after = JSON.parse(fs.readFileSync(path.join(dir, 'statements.json'), 'utf8')).length;
+  assert.equal(twice.token, once.token, '같은 번호면 같은 조서 번호를 돌려준다');
+  assert.equal(after, before + 1, '같은 번호면 한 번만 들어간다');
+
   // 없는 번호
   const [nf] = await get('/api/statement/deadbeef');
   assert.equal(nf, 404);

@@ -763,3 +763,10 @@ body.in-scene #corner, body.slow #corner{display:none}
 .file.record .rec-stamps{display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-top:14px}
 .file.record .rec-stamps .stamp{margin-top:0; font-size:12.5px}
 .file.record .rec-stamps .stamp + .stamp{transform:rotate(3deg)}
+/* 복면 속에서 서버를 기다리는 동안 — 멈춘 게 아니라는 것만 알린다 */
+.hood.busy{
+  display:flex; align-items:center; justify-content:center; pointer-events:auto;
+  color:var(--faint); font-family:var(--serif); font-size:14px; letter-spacing:.04em;
+  animation:hoodPulse 2.4s ease-in-out infinite;
+}
+@keyframes hoodPulse{0%,100%{color:rgba(128,122,109,.55)} 50%{color:rgba(128,122,109,.95)}}
