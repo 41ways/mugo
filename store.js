@@ -11,6 +11,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const CLAIM_TTL_MS = 30 * 60 * 1000; // 배심원이 물고 간 진술을 다시 풀어주기까지
+const CLAIM_LOCK = 482019;            // 나눠주기를 줄 세우는 advisory lock 번호 (아무 수나 고정)
 // 한 조서를 몇 사람이 읽는가에는 상한이 없다. 지어낸 조서를 주느니 실제 사람이
 // 쓴 것을 다시 돌린다. 다만 통지는 두 통까지만 나간다(주소를 그때 지운다).
 const MAX_MAILS = 2;
@@ -49,27 +50,29 @@ const heldBy = (row, player) => listOf(row.holds).some((h) => h && h.by === play
 const taken = (row, now, me) =>
   (row.judged_count != null ? row.judged_count : (row.judged_at ? 1 : 0)) + liveHolds(row, now, me).length;
 
+// 마지막으로 누가 이 조서를 손댄 때 — 받아 갔거나 판결했거나.
+const lastTouch = (row) => Math.max(0,
+  ...listOf(row.verdicts).map((v) => Number(v.at || 0)),
+  ...listOf(row.holds).map((h) => Number(h.at || 0)));
+
 // 누구에게 무엇을 줄까.
-//   1순위 — 아무도 아직 안 건드린 조서. 한 사람에 한 조서가 기본이다.
-//   2순위 — 그런 게 없는데 아직 판결 안 난 조서를 누가 읽고 있다면, 그걸 같이 준다.
-//           여럿이면 지금 덜 붙들린 쪽부터.
-//           동시에 들어온 사람들이 같은 조서를 나눠 읽는 경우다. 이미 판결 끝난
-//           옛 조서로 돌리는 것보다, 지금 기다리는 사람에게 판결이 하나 더 가는 편이 낫다.
-//   3순위 — 그것도 없으면 덜 읽힌 것부터 다시 돌린다. 상한은 없다.
-//           지어낸 조서를 주면 그 판은 아무와도 안 엮이므로, 그것보다는 낫다.
-//   줄 사람이 정말 하나도 없을 때만 null — 그때야 지어낸 조서로 간다.
+//   1순위 — 아무도 안 건드린 조서. 플레이가 먼저 끝난 순서대로, 한 사람에 하나.
+//   2순위 — 그런 게 없으면 「지금 돌고 있는 조서」, 곧 가장 최근에 누가 받아 가거나
+//           판결한 조서를 준다. 안 건드린 조서가 없다는 건 앞사람들이 아직 게임을
+//           끝내지 않았다는 뜻이다(끝내면 그 사람 진술이 새로 들어오므로). 그러니
+//           그들이 읽고 있는 조서를 같이 읽히는 게 맞다 — 판결까지 마치고 뒤를 진행
+//           중이어도 마찬가지다. 몇 번을 읽히든 상한은 없다.
+//   줄 게 정말 하나도 없을 때만 null — 그때야 지어낸 조서로 간다.
 //
-// 모두 플레이가 먼저 끝난 순서다. 조서는 판이 끝날 때 만들어지므로
-// created_at 이 곧 끝난 순서고, 덜 읽힌 것부터 세우면 앞에서부터 한 바퀴씩 돈다.
+//   예) 대기열에 서혁인 하나. skrrr 가 받아 판결하고 뒤를 진행 중
+//       → 새로 온 사람도 서혁인. skrrr 가 끝내면 skrrr 진술이 1순위로 나간다.
 function choose(rows, now, me) {
   const line = rows
     .filter((r) => !parked(r, now) && r.player !== me && !judgedBy(r, me))
     .sort((a, b) => a.created_at - b.created_at);
-  const judged = (r) => (r.judged_count != null ? r.judged_count : (r.judged_at ? 1 : 0));
   return line.find((r) => taken(r, now, me) === 0)
-      // 여럿이면 지금 덜 붙들린 쪽부터 — 판결이 한 조서에 몰리지 않고 고르게 난다
-      || line.filter((r) => judged(r) === 0).sort((a, b) => taken(a, now, me) - taken(b, now, me))[0]
-      || line.slice().sort((a, b) => taken(a, now, me) - taken(b, now, me))[0]
+      // 같은 때 손댄 것끼리면 더 새로 들어온 조서 — 지금 도는 쪽에 더 가깝다
+      || line.slice().sort((a, b) => (lastTouch(b) - lastTouch(a)) || (b.created_at - a.created_at))[0]
       || null;
 }
 
@@ -262,14 +265,14 @@ class PgStore {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
+      // 조서 나눠주기는 한 번에 하나씩. 행을 골라 잠그면 「가장 최근에 손댄 조서」가
+      // 잠근 범위 밖에 있을 수 있어, 나눠주기 전체를 트랜잭션 잠금 하나로 줄 세운다.
+      await client.query('SELECT pg_advisory_xact_lock($1)', [CLAIM_LOCK]);
       const { rows } = await client.query(
         `SELECT * FROM statements
           WHERE player <> $1
             AND NOT (verdicts @> $2::jsonb)
-            AND (claimed_at IS NULL OR claimed_at < $3)
-          ORDER BY judged_count, created_at
-          LIMIT 50
-          FOR UPDATE`,
+            AND (claimed_at IS NULL OR claimed_at < $3)`,
         [me, JSON.stringify([{ by: me }]), now + PARK_MS]);
 
       const r = choose(rows, now, me);

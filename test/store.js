@@ -33,10 +33,10 @@ const row = (player, name) => ({
   const forP4 = await s.claim('p4');
   assert.equal(forP4.id, a.id, '두 번째 사람도 같은 조서를 받는다');
 
-  // 두 자리가 다 찼으면 그때 다음 조서로 넘어간다
+  // 안 건드린 조서가 없으면 지금 돌고 있는 조서를 같이 받는다 — 다음 조서로 넘기지 않는다
   const forP5 = await s.claim('p5');
-  assert.equal(forP5.id, b.id, '앞 조서가 차면 다음 조서');
-  // 자리가 다 차도 지어낸 조서로 가지 않는다. 덜 읽힌 것부터 다시 돈다.
+  assert.equal(forP5.id, a.id, '가장 최근에 받아 간 조서를 같이 받는다');
+  // 지어낸 조서로 가지 않는다
   const forP6 = await s.claim('p6');
   assert.ok(forP6, '실제 조서를 다시 준다');
 
@@ -60,10 +60,9 @@ const row = (player, name) => ({
   // 판결하면 손을 놓는다. b 는 판결 하나(p1) + 아직 붙들고 있는 사람 하나(p5) 로 꽉 차 있다
   await s.judge(b.id, { verdict: 'guilty', reason: '이유', judge_name: '무', judged_by: 'p1' });
   assert.equal((await s.byId(b.id)).holds.some((h) => h.by === 'p1'), false, '판결한 사람의 손자국은 지운다');
-  // 상한이 없으니 줄 것은 늘 있다. 덜 읽힌 것부터 다시 돈다.
+  // 상한이 없으니 줄 것은 늘 있다
   const forP8 = await s.claim('p8');
   assert.ok(forP8, '지어낸 조서로 가지 않는다 — 실제 조서를 다시 준다');
-  assert.equal(forP8.id, b.id, '덜 읽힌 쪽이 먼저다');
 
   // 한 사람에 한 조서가 기본이다 — 아무도 안 건드린 조서가 있으면 그게 먼저다.
   // 이미 한 번 읽힌 것을 두 사람째 내주는 건 그런 게 하나도 없을 때뿐이다.
@@ -94,6 +93,39 @@ const row = (player, name) => ({
     const second = await t.claim('q5');
     assert.equal(second.id, fresh.id, '동시에 온 사람도 같은 새 조서 — 판결 끝난 옛 조서로 가지 않는다');
     fs.rmSync(dirT, { recursive: true, force: true });
+    process.env.DATA_DIR = keep;
+  }
+
+  // 판결까지 마친 사람이 뒤를 진행 중일 때 — 대기열에 안 읽힌 조서가 없으면,
+  // 새로 온 사람은 오래된 조서가 아니라 그 사람이 막 판결한 조서를 받는다.
+  // 그 사람이 끝내 진술을 내면, 다음 사람은 그 진술을 받는다.
+  {
+    const keep = process.env.DATA_DIR;
+    const dirS = fs.mkdtempSync(path.join(os.tmpdir(), 'mugo-s-'));
+    process.env.DATA_DIR = dirS;
+    const k = await openStore();
+    const now = Date.now();
+    const hwang = await k.insert({ ...row('hw', '황선생'), created_at: now - 20 * 864e5 });
+    const seo = await k.insert({ ...row('seo', '서혁인'), created_at: now - 3 * 36e5 });
+    // 황선생은 사흘 전에 누가 읽고 끝냈다
+    Object.assign((await k.byId(hwang.id)), {
+      judged_count: 1, judged_at: now - 3 * 864e5,
+      verdicts: [{ verdict: 'innocent', judge_name: 'Jay', by: 'jay', at: now - 3 * 864e5 }], holds: [],
+    });
+    // 서혁인은 skrrr 가 2분 전에 받아 판결했고, 뒤를 진행 중 — 손자국은 판결하며 지워졌다
+    Object.assign((await k.byId(seo.id)), {
+      judged_count: 1, judged_at: now - 12e4,
+      verdicts: [{ verdict: 'guilty', judge_name: 'skrrr', by: 'skrrr', at: now - 12e4 }], holds: [],
+    });
+
+    const forNew = await k.claim('newcomer');
+    assert.equal(forNew.id, seo.id, '새로 온 사람은 skrrr 가 막 판결한 서혁인을 받는다 — 옛 황선생이 아니라');
+
+    const skrrr = await k.insert({ ...row('skrrr', 'skrrr'), created_at: Date.now() });   // skrrr 가 끝냄
+    const forNext = await k.claim('next');
+    assert.equal(forNext.id, skrrr.id, 'skrrr 가 끝내면 다음 사람은 skrrr 의 진술');
+
+    fs.rmSync(dirS, { recursive: true, force: true });
     process.env.DATA_DIR = keep;
   }
 
