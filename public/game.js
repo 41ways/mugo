@@ -731,6 +731,47 @@
     return addBlock(f);
   }
 
+  // 앞사람 사건 기록. 길면 안 읽는다 — 증거품 몇 줄, 사건일지는 토막 사실로.
+  // 수첩 요약은 진술을 낼 때 저장된 문장이라, 여기서 알아보고 짧은 사실로 바꿔 그린다.
+  function recordHtml(c) {
+    const R = S.act2.record;
+    const at = c.caught === 'house' ? 'house' : 'dock';
+    const lines = (c.clues && c.clues.length) ? c.clues : [];
+    const kept = isKeptJournal(lines);
+    const book = kept ? R.kept : lines.length ? R.torn : null;
+
+    const items = R.items[at].slice(0, 2).concat([book ? book.item : R.items[at][2]]);
+    const log = R.log[at].map((t) => ({ t }));
+    if (book) {
+      log.push({ t: book.line });
+      R.facts.forEach((f) => {
+        if (lines.some((x) => new RegExp(f.re).test(x))) log.push({ t: esc(f.t), sub: true });
+      });
+    }
+    return `<div class="rec-sec">${esc(R.itemsHead)}</div>` +
+      `<div class="rec-items">${items.map((t, i) => `<span class="no">${i + 1}호</span><span>${esc(t)}</span>`).join('')}</div>` +
+      `<div class="rec-sec">${esc(R.logHead)}</div>` +
+      `<ul class="rec-log">${log.map((l) => `<li${l.sub ? ' class="sub"' : ''}>${l.t}</li>`).join('')}</ul>` +
+      `<div class="rec-stamps"><span class="stamp">${esc(R.stamp)}</span>` +
+      (book ? `<span class="stamp">${esc(book.conclude)}</span>` : '') + `</div>`;
+  }
+
+  // 다음 사람에게 넘어가는 사건일지. 찢었으면 찢은 요약, 한 장도 안 찢었으면 남긴 요약.
+  // 어느 쪽이든 원문이 아니라 무엇에 관한 기록이었는지만 넘어간다. 적은 게 없으면 빈칸.
+  function journalSummary() {
+    if (state.torn.length) return tornSummary(state.torn);
+    if (!state.pages.length) return [];
+    const T = S.act2.torn, K = S.act2.kept, pages = state.pages;
+    const ko = ['', '한', '두', '세', '네', '다섯', '여섯', '일곱'];
+    const out = [K.count.replace('{n}', ko[pages.length] || String(pages.length))];
+    if (pages.some((pg) => pg.cat === 'entry')) out.push(T.entry);
+    if (pages.some((pg) => pg.cat === 'habit')) out.push(T.habit);
+    if (pages.length >= 4) out.push(T.many);
+    return out;
+  }
+  // 저장된 수첩 요약이 어느 쪽인지 — 찢지 않은 수첩의 요약은 첫 줄로 알아본다(옛 문구도 같이)
+  const isKeptJournal = (lines) => !!(lines && lines.length && /적힌 장은|찢기지 않은/.test(lines[0]));
+
   // 찢긴 장에서 떠낸 것. 원문이 아니라 성격만 다음 사람에게 넘어간다.
   function tornSummary(torn) {
     if (!torn.length) return [];
@@ -740,7 +781,6 @@
     if (torn.some((p) => p.cat === 'entry')) out.push(T.entry);
     if (torn.some((p) => p.cat === 'habit')) out.push(T.habit);
     if (torn.length >= 4) out.push(T.many);
-    out.push(T.tail);
     return out;
   }
 
@@ -855,28 +895,14 @@
 
     const c = await casePromise;
     state.caseData = c;
-    note(`유치장의 남자 — ${c.name}. ${c.caught === 'house' ? '저택에서 현장 검거' : '부두 널판 끝에서 검거'}.`);
-    if (c.clues && c.clues.length) note('사건일지에 찢겨 나간 자리가 있다.');
+    const lines = (c.clues && c.clues.length) ? c.clues : [];
+    const kept = isKeptJournal(lines);
+    note(`유치장의 남자 — ${c.name}. ${c.caught === 'house' ? '피범벅이 된 채 저택에서 현행범 체포' : '흉기를 쥔 채 부두 끝에서 체포'}.`);
+    if (lines.length && !kept) note('수첩을 찢어 증거를 없애려 했다. 계획 범행.');
+    else if (kept) note('수첩에 저택 침입 방법과 피해자에 대한 내용이 자세히 적혀 있었다.');
 
-    const E = S.act2.evidence;
-    const torn = (c.clues && c.clues.length) ? c.clues : [];
-    await fileCard(E.head,
-      `<ul>` +
-      `<li>${E.weapon[c.caught === 'house' ? 'house' : 'dock']}</li>` +
-      `<li>${E.ticket}</li>` +
-      `<li>${torn.length ? E.journal.torn : E.journal.clean}</li>` +
-      `</ul>` +
-      `<p style="margin:15px 0 0">${E.note[c.caught === 'house' ? 'house' : 'dock']}</p>`,
-      E.stamp);
-    await wait(1700);
-
-    if (torn.length) {
-      const T = S.act2.tamper;
-      await fileCard(T.head,
-        `<p style="margin:0 0 13px;color:#6f6552;font-size:13.5px">${esc(T.lead)}</p>` +
-        torn.map((x) => `<p class="memo">— ${esc(x)}</p>`).join(''), null, 'alarm');
-      await wait(1900);
-    }
+    await fileCard(S.act2.record.head, recordHtml(c), null, 'record');
+    await wait(2400);
 
     await say(S.act2.after);
     (await observe(S.act2.observe)).forEach((f) => note(`${f.tag} — ${f.text}`));
@@ -1007,9 +1033,8 @@
       await say([{ s: r.opts[pick].out }].concat(r.after));
     }
 
-    await say(S.act4.out);
-
-    // 살리는 데는 실패했다. 남은 선택은 하나뿐이다.
+    // 숨이 끊기기 전에 범인이 달아난다. 붙들 것인가, 쫓을 것인가 —
+    // 그녀의 죽음은 어느 쪽을 골라도 온다(쫓으면 손을 떼는 순간, 붙들면 손 안에서).
     const F = S.act4.fork;
     await say(F.lead, { silent: true });
     const pick = await choose(F.ask, [F.chase.label, F.stay.label]);
@@ -1190,7 +1215,7 @@
 
     let res = null;
     const body = {
-      player: state.player, name: state.name, answers, clues: tornSummary(state.torn),
+      player: state.player, name: state.name, answers, clues: journalSummary(),
       caught: state.chased ? 'dock' : 'house', email,
     };
     // 한 번 실패하면(서버가 막 깨어나는 중 등) 잠깐 뒤에 한 번 더 보낸다
@@ -1257,8 +1282,8 @@
 
     if (state.pages.length) {
       add(state.torn.length ? `수첩에서 ${state.torn.length}장을 찢었다` : '수첩을 한 장도 찢지 않았다',
-        state.torn.length ? '찢은 자리가 들켰다. 다음 사람에게 「계획적이었다」로 넘어간다'
-                          : '다음 사람에게 수첩이 깨끗하게 넘어간다');
+        state.torn.length ? '찢은 자리가 들켰다. 다음 사람에게 「증거를 없애려 한 계획 범행」으로 넘어간다'
+                          : '켈러가 끝까지 읽었다. 다음 사람에게 「철저히 계획했다」로 넘어간다');
     } else {
       add('수첩에 적은 것이 없었다', '찢을 것도 숨길 것도 없었다');
     }

@@ -9,6 +9,9 @@ delete process.env.DATABASE_URL;
 
 const { openStore, newId, newToken } = require('../store.js');
 
+// 「가장 최근에 손댄 조서」를 가리므로, 같은 밀리초에 두 번 받으면 순서가 흐려진다. 한 박자 둔다.
+const tick = () => new Promise((r) => setTimeout(r, 3));
+
 const row = (player, name) => ({
   id: newId(), token: newToken(), player, name, answers: ['a', 'b', 'c'], clues: [],
   email: 'x@y.zz', created_at: Date.now(), claimed_at: null, judged_at: null,
@@ -26,17 +29,21 @@ const row = (player, name) => ({
   assert.equal(forP1.id, b.id, '자기 것이 아닌 진술이 나와야 한다');
 
   // 들어온 순서대로. 가장 오래 기다린 것부터
+  await tick();
   const forP3 = await s.claim('p3');
   assert.equal(forP3.id, a.id, '오래 기다린 것이 먼저 나온다');
 
   // 같은 조서를 두 사람이 동시에 읽는다 — 잠그지 않는다
+  await tick();
   const forP4 = await s.claim('p4');
   assert.equal(forP4.id, a.id, '두 번째 사람도 같은 조서를 받는다');
 
   // 안 건드린 조서가 없으면 지금 돌고 있는 조서를 같이 받는다 — 다음 조서로 넘기지 않는다
+  await tick();
   const forP5 = await s.claim('p5');
   assert.equal(forP5.id, a.id, '가장 최근에 받아 간 조서를 같이 받는다');
   // 지어낸 조서로 가지 않는다
+  await tick();
   const forP6 = await s.claim('p6');
   assert.ok(forP6, '실제 조서를 다시 준다');
 
@@ -61,18 +68,22 @@ const row = (player, name) => ({
   await s.judge(b.id, { verdict: 'guilty', reason: '이유', judge_name: '무', judged_by: 'p1' });
   assert.equal((await s.byId(b.id)).holds.some((h) => h.by === 'p1'), false, '판결한 사람의 손자국은 지운다');
   // 상한이 없으니 줄 것은 늘 있다
+  await tick();
   const forP8 = await s.claim('p8');
   assert.ok(forP8, '지어낸 조서로 가지 않는다 — 실제 조서를 다시 준다');
 
   // 한 사람에 한 조서가 기본이다 — 아무도 안 건드린 조서가 있으면 그게 먼저다.
   // 이미 한 번 읽힌 것을 두 사람째 내주는 건 그런 게 하나도 없을 때뿐이다.
   const d = await s.insert(row('p9', '정'));       // 새로 들어온, 아무도 안 건드린 조서
+  await tick();
   const forP10 = await s.claim('p10');
   assert.equal(forP10.id, d.id, '읽힌 적 없는 조서가 먼저다 — 오래됐다고 두 번째 자리를 주지 않는다');
 
   // 그 조서마저 누가 붙들고 있으면, 그때야 이미 읽힌 조서로 넘어간다
+  await tick();
   const forP11 = await s.claim('p11');
   assert.equal(forP11.id, d.id, '줄 게 없으면 같은 조서를 두 사람째 — 동시 접속이 이 경우다');
+  await tick();
   const forP12 = await s.claim('p12');
   assert.ok(forP12, '자리가 다 차도 실제 조서를 다시 준다');
 
@@ -85,11 +96,14 @@ const row = (player, name) => ({
     const t = await openStore();
     const now = Date.now();
     const old1 = await t.insert({ ...row('q1', '옛조서'), created_at: now - 9e6 });
+    await tick();
     await t.claim('q2');                                             // 옛조서를 누가 받아
     await t.judge(old1.id, { verdict: 'guilty', judge_name: '갑', judged_by: 'q2' });  // 판결까지 끝냄
     const fresh = await t.insert({ ...row('q3', '새조서'), created_at: now - 1e3 });
+    await tick();
     const first = await t.claim('q4');
     assert.equal(first.id, fresh.id, '먼저 온 사람은 안 읽힌 새 조서');
+    await tick();
     const second = await t.claim('q5');
     assert.equal(second.id, fresh.id, '동시에 온 사람도 같은 새 조서 — 판결 끝난 옛 조서로 가지 않는다');
     fs.rmSync(dirT, { recursive: true, force: true });
@@ -118,10 +132,12 @@ const row = (player, name) => ({
       verdicts: [{ verdict: 'guilty', judge_name: 'skrrr', by: 'skrrr', at: now - 12e4 }], holds: [],
     });
 
+    await tick();
     const forNew = await k.claim('newcomer');
     assert.equal(forNew.id, seo.id, '새로 온 사람은 skrrr 가 막 판결한 서혁인을 받는다 — 옛 황선생이 아니라');
 
     const skrrr = await k.insert({ ...row('skrrr', 'skrrr'), created_at: Date.now() });   // skrrr 가 끝냄
+    await tick();
     const forNext = await k.claim('next');
     assert.equal(forNext.id, skrrr.id, 'skrrr 가 끝내면 다음 사람은 skrrr 의 진술');
 
@@ -140,7 +156,9 @@ const row = (player, name) => ({
     const base = Date.now() - 1e7;
     const seo = await q.insert({ ...row('seo', '서혁인'), created_at: base });
 
+    await tick();
     const forA = await q.claim('A');
+    await tick();
     const forB = await q.claim('B');
     assert.equal(forA.id, seo.id, 'A 는 서혁인');
     assert.equal(forB.id, seo.id, '동시에 온 B 도 서혁인');
@@ -152,7 +170,9 @@ const row = (player, name) => ({
 
     assert.equal((await q.byId(seo.id)).judged_count, 2, '서혁인은 두 판결을 받는다');
 
+    await tick();
     const forC = await q.claim('C');
+    await tick();
     const forD = await q.claim('D');
     assert.equal(forC.id, stA.id, 'C 는 대기열 1번 — 먼저 끝낸 A 의 진술');
     assert.equal(forD.id, stB.id, 'D 는 대기열 2번 — B 의 진술');

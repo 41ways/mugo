@@ -107,9 +107,21 @@ async function show(store, key) {
   const qs = S.act2.questions.concat([S.act2.third[caught]]);
   const ans = listOf(r.answers), clues = listOf(r.clues);
   console.log(`\n【${r.name}】 #${r.id.slice(0, 6)}  ${span(Date.now() - Number(r.created_at))}째  · 주소 ${mask(r.email)}`);
-  console.log(`검거: ${caught === 'house' ? '저택 — 시신 옆에 무릎 꿇은 채. 흉기는 안 나옴' : '부두 널판 끝 — 흉기를 쥔 채'}`);
-  console.log(`사건일지: ${clues.length ? '찢겨 나간 자리 있음' : '처음부터 끝까지 그대로'}`);
-  clues.forEach((c) => console.log(`    · ${c}`));
+  // 게임 2장에서 탐정이 보는 사건 기록과 같은 모양으로
+  const R = S.act2.record;
+  const plain = (t) => String(t).replace(/<[^>]+>/g, '');
+  const kept = !!clues.length && /적힌 장은|찢기지 않은/.test(clues[0]);
+  const book = kept ? R.kept : clues.length ? R.torn : null;
+  const items = R.items[caught].slice(0, 2).concat([book ? book.item : R.items[caught][2]]);
+  console.log(`\n증거품`);
+  items.forEach((t, i) => console.log(`  ${i + 1}호  ${t}`));
+  console.log(`사건일지`);
+  R.log[caught].forEach((t) => console.log(`  ▪ ${plain(t)}`));
+  if (book) {
+    console.log(`  ▪ ${plain(book.line)}`);
+    R.facts.forEach((f) => { if (clues.some((x) => new RegExp(f.re).test(x))) console.log(`    └ ${f.t}`); });
+  }
+  console.log(`  [${R.stamp}]${book ? ` [${book.conclude}]` : ''}`);
   console.log('');
   qs.forEach((q, i) => console.log(`  나   ${q}\n  남자 ${(ans[i] || '').trim() || '(대답하지 않는다)'}\n`));
   const vs = listOf(r.verdicts);
