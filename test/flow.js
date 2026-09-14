@@ -195,6 +195,15 @@ const done = (code) => { if (srv) srv.kill(); fs.rmSync(dir, { recursive: true, 
   assert.ok(lookedRow.looked_at, '들여다본 때가 남는다');
   assert.ok(lookedRow.looked_count > 0, '판결이 난 뒤에 봤다');
 
+  // 두 번 봐도 한 번 본 것과 같다 — 페이지 내용도, 기록도
+  const [, look1] = await get('/api/statement/' + a.token);
+  await new Promise((r) => setTimeout(r, 15));
+  const [, look2] = await get('/api/statement/' + a.token);
+  const same = (x) => JSON.stringify({ ...x, waited: 0 });
+  assert.equal(same(look2), same(look1), '두 번째로 봐도 보이는 내용이 같다');
+  const lookedAgain = JSON.parse(fs.readFileSync(path.join(dir, 'statements.json'), 'utf8')).find((r) => r.token === a.token);
+  assert.equal(lookedAgain.looked_at, lookedRow.looked_at, '다시 봐도 처음 본 때가 바뀌지 않는다');
+
   // 없는 번호
   const [nf] = await get('/api/statement/deadbeef');
   assert.equal(nf, 404);

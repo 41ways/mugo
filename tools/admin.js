@@ -45,7 +45,8 @@ const mask = (e) => {
 const looked = (r, now) => {
   if (!r.looked_at) return '결과 안 봄';
   const when = span(now - Number(r.looked_at));
-  return Number(r.looked_count) > 0 ? `결과 확인함 · ${when} 전` : `판결 전에만 들여다봄 · ${when} 전`;
+  // 적힌 때는 「처음 본 때」다(같은 판결을 다시 봐도 바뀌지 않는다)
+  return Number(r.looked_count) > 0 ? `결과 확인함 · 처음 본 게 ${when} 전` : `판결 전에만 들여다봄 · ${when} 전`;
 };
 const judgedCount = (r) => (r.judged_count != null ? r.judged_count : (r.judged_at ? 1 : 0));
 const isParked = (r, now) => Number(r.claimed_at || 0) > now + PARK_MS;

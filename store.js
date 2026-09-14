@@ -146,10 +146,12 @@ class FileStore {
       .sort((a, b) => b.created_at - a.created_at)[0] || null;
   }
 
-  // 결과를 들여다본 때를 적는다
+  // 결과를 처음 들여다본 때를 적는다. 같은 판결을 다시 보면 아무것도 바꾸지 않고,
+  // 새 판결이 난 뒤에 볼 때만 새로 적는다 — 두 번 봐도 한 번 본 것과 같게.
   async markLooked(id, count) {
     const row = this.rows.find((r) => r.id === id);
     if (!row) return;
+    if (row.looked_count != null && row.looked_count >= count) return;
     row.looked_at = Date.now();
     row.looked_count = count;
     await this.flush();
@@ -346,9 +348,12 @@ class PgStore {
     return rows[0] || null;
   }
 
-  // 결과를 들여다본 때를 적는다
+  // 결과를 처음 들여다본 때를 적는다. 같은 판결을 다시 보면 아무것도 바꾸지 않고,
+  // 새 판결이 난 뒤에 볼 때만 새로 적는다 — 두 번 봐도 한 번 본 것과 같게.
   async markLooked(id, count) {
-    await this.pool.query('UPDATE statements SET looked_at = $2, looked_count = $3 WHERE id = $1',
+    await this.pool.query(
+      `UPDATE statements SET looked_at = $2, looked_count = $3
+        WHERE id = $1 AND (looked_count IS NULL OR looked_count < $3)`,
       [id, Date.now(), count]);
   }
 
