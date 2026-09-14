@@ -741,20 +741,20 @@
     const book = kept ? R.kept : lines.length ? R.torn : null;
 
     const items = R.items[at].slice(0, 2).concat([book ? book.item : R.items[at][2]]);
-    const log = R.log[at].map((t) => ({ t }));
+    const log = R.log[at].slice();
     if (book) {
-      log.push({ t: book.line });
-      R.facts.forEach((f) => {
-        if (lines.some((x) => new RegExp(f.re).test(x))) log.push({ t: esc(f.t), sub: true });
-      });
+      const found = R.facts.filter((f) => lines.some((x) => new RegExp(f.re).test(x))).map((f) => f.t);
+      // 찢었으면 「수첩을 찢음 · 무엇을 조사했는지」, 안 찢었으면 조사한 내용만(겹치는 말을 줄인다)
+      const sub = book === R.kept && found.length ? `수첩: ${found.join(' · ')}` : [book.s].concat(found).join(' · ');
+      log.push({ t: book.t, s: sub });
     }
-    return `<div class="rec-sec">${esc(R.itemsHead)}</div>` +
-      `<div class="rec-items">${items.map((t, i) => `<span class="no">${i + 1}호</span><span>${esc(t)}</span>`).join('')}</div>` +
-      `<div class="rec-sec">${esc(R.logHead)}</div>` +
-      `<ul class="rec-log">${log.map((l) => `<li${l.sub ? ' class="sub"' : ''}>${l.t}</li>`).join('')}</ul>` +
+    return `<div class="rec-items"><span class="rec-sec">${esc(R.itemsHead)}</span>${items.map(esc).join(' · ')}</div>` +
+      `<ol class="rec-log">${log.map((l) =>
+        `<li><b>${esc(l.t)}</b>${l.s ? `<span>${esc(l.s)}</span>` : ''}</li>`).join('')}</ol>` +
       `<div class="rec-stamps"><span class="stamp">${esc(R.stamp)}</span>` +
       (book ? `<span class="stamp">${esc(book.conclude)}</span>` : '') + `</div>`;
   }
+
 
   // 다음 사람에게 넘어가는 사건일지. 찢었으면 찢은 요약, 한 장도 안 찢었으면 남긴 요약.
   // 어느 쪽이든 원문이 아니라 무엇에 관한 기록이었는지만 넘어간다. 적은 게 없으면 빈칸.
