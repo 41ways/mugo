@@ -446,14 +446,20 @@
       const list = box.appendChild(el('div', 'opts'));
 
       let left = seconds * 1000, since = 0, timer = null, done = false;
+      // 도는 중일 때만 멈추고, 멈춰 있을 때만 다시 돈다. 첫 프레임 전에 탭을 가리면
+      // 시작 시각이 없어 남은 시간이 0.3초로 깎이고, 되돌아올 때 타이머가 둘 생겨
+      // 다시 가려도 하나가 몰래 끝나 버리던 것을 막는다.
       const run = () => {
+        if (done || timer || document.hidden) return;
         since = Date.now();
         timer = setTimeout(() => end(-1), left);
         fill.style.transition = `width ${left}ms linear`;
         fill.style.width = '0%';
       };
       const hold = () => {
+        if (!timer) return;
         clearTimeout(timer);
+        timer = null;
         left = Math.max(300, left - (Date.now() - since));
         const pct = (fill.getBoundingClientRect().width / bar.getBoundingClientRect().width) * 100;
         fill.style.transition = 'none';
@@ -542,14 +548,20 @@
       }
 
       let left = seconds * 1000, since = 0, timer = null, done = false;
+      // 도는 중일 때만 멈추고, 멈춰 있을 때만 다시 돈다. 첫 프레임 전에 탭을 가리면
+      // 시작 시각이 없어 남은 시간이 0.3초로 깎이고, 되돌아올 때 타이머가 둘 생겨
+      // 다시 가려도 하나가 몰래 끝나 버리던 것을 막는다.
       const run = () => {
+        if (done || timer || document.hidden) return;
         since = Date.now();
         timer = setTimeout(() => end(-1), left);
         fill.style.transition = `width ${left}ms linear`;
         fill.style.width = '0%';
       };
       const hold = () => {
+        if (!timer) return;
         clearTimeout(timer);
+        timer = null;
         left = Math.max(300, left - (Date.now() - since));
         const pct = (fill.getBoundingClientRect().width / timerEl.getBoundingClientRect().width) * 100;
         fill.style.transition = 'none';
@@ -684,14 +696,20 @@
       });
 
       let left = seconds * 1000, since = 0, timer = null, done = false;
+      // 도는 중일 때만 멈추고, 멈춰 있을 때만 다시 돈다. 첫 프레임 전에 탭을 가리면
+      // 시작 시각이 없어 남은 시간이 0.3초로 깎이고, 되돌아올 때 타이머가 둘 생겨
+      // 다시 가려도 하나가 몰래 끝나 버리던 것을 막는다.
       const run = () => {
+        if (done || timer || document.hidden) return;
         since = Date.now();
         timer = setTimeout(() => end(-1), left);
         fill.style.transition = `width ${left}ms linear`;
         fill.style.width = '0%';
       };
       const hold = () => {
+        if (!timer) return;
         clearTimeout(timer);
+        timer = null;
         left = Math.max(300, left - (Date.now() - since));
         const pct = (fill.getBoundingClientRect().width / timerEl.getBoundingClientRect().width) * 100;
         fill.style.transition = 'none';
@@ -1455,10 +1473,23 @@
       requestAnimationFrame(() => f.classList.add('on'));
     };
 
-    let r;
-    try { r = await api('/api/statement/' + encodeURIComponent(token)); }
-    catch {
-      stage.appendChild(el('p', 'notice-line on', '그런 조서는 없다. 번호를 다시 보시오.'));
+    // 메일 링크로 들어오면 무료 서버가 자고 있다가 깨는 중일 때가 많다(30~60초).
+    // 그 사이의 끊김·5xx 를 「없는 조서」로 말하면 판결을 영영 못 본 줄 안다.
+    let r = null, missing = false;
+    const waitNote = stage.appendChild(el('p', 'notice-line', '법원 서기가 서류철을 찾고 있다…'));
+    for (let n = 0, gap = 1500; n < 8 && !r && !missing; n++, gap = Math.min(gap * 2, 12000)) {
+      try {
+        const res = await fetch('/api/statement/' + encodeURIComponent(token), { cache: 'no-store' });
+        if (res.status === 404) missing = true;
+        else if (res.ok) r = await res.json();
+      } catch { /* 아직 안 깼다 */ }
+      if (!r && !missing) { if (n === 1) waitNote.classList.add('on'); await wait(gap); }
+    }
+    waitNote.remove();
+    if (!r) {
+      stage.appendChild(el('p', 'notice-line on', missing
+        ? '그런 조서는 없다. 번호를 다시 보시오.'
+        : '법원이 답하지 않는다. 잠시 뒤에 이 링크를 다시 여시오.'));
       return endButtons();
     }
 
@@ -1542,6 +1573,7 @@
         `<footer class="sh-foot sh-part">회항 지방법원</footer>`;
 
       stage.scrollTop = 0;
+      root.classList.remove('after-guilty', 'after-innocent');   // 앞 통지서의 기운을 걷는다
       requestAnimationFrame(() => paper.classList.add('on'));
       await pause(900);
 

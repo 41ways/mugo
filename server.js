@@ -44,6 +44,10 @@ const clean = (v, n) => clip(v, n).replace(/[<>]/g, '');
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
 const isEmail = (v) => EMAIL_RE.test(v);
 
+// n번째 앞의 통지들이 다 나갔는가. 결과가 안 남은 옛 판결은 나간 것으로 친다.
+const earlierSent = (row, nth) => listOf(row.verdicts).slice(0, nth - 1)
+  .every((v) => !v.mail || v.mail.ok || v.mail.skipped);
+
 function json(res, code, body) {
   const buf = Buffer.from(JSON.stringify(body));
   res.writeHead(code, {
@@ -139,7 +143,8 @@ async function apiVerdict(req, res) {
 
   // 주소는 마지막 통지가 실제로 나간 다음에 지운다. 실패했는데 지우면
   // 다시 보낼 길이 영영 없어지고, 첫 통에 지우면 둘째 통을 못 보낸다.
-  if (row.email && delivered && seen >= MAX_MAILS) await store.clearEmail(row.id);
+  // 앞 통지가 실패해 남아 있으면 그것을 다시 보내야 하므로 지우지 않는다.
+  if (row.email && delivered && seen >= MAX_MAILS && earlierSent(row, seen)) await store.clearEmail(row.id);
   json(res, 200, { ok: true, delivered, nth: seen });
 }
 

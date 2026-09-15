@@ -86,8 +86,12 @@ const mask = (e) => {
     await store.markMailed(row.id, nth, report);
     if (report.ok) {
       ok += 1;
-      // 마지막 통지까지 나갔으면 그때 주소를 지운다
-      if (nth >= MAX_MAILS) await store.clearEmail(row.id);
+      // 보낼 통지가 전부 나갔을 때만 주소를 지운다 — 첫 통지를 나중에 다시 보낸 경우도 여기서 걸린다.
+      // 결과가 안 남은 옛 판결은 나간 것으로 친다.
+      const vs = listOf((await store.byId(row.id) || row).verdicts);
+      if (vs.length >= MAX_MAILS && vs.slice(0, MAX_MAILS).every((v) => !v.mail || v.mail.ok || v.mail.skipped)) {
+        await store.clearEmail(row.id);
+      }
     } else fail += 1;
     // Resend 무료 등급은 초당 2통이다. 한 박자 쉰다.
     await new Promise((r) => setTimeout(r, 600));
