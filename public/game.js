@@ -1495,7 +1495,6 @@
     await pause(600);
     env.remove();
 
-    const flipped = list.length > 1 && list.some((v) => v.verdict !== list[0].verdict);
     for (let i = 0; i < list.length; i++) {
       await sheet(list[i], i);
       if (i < list.length - 1) {
@@ -1507,13 +1506,6 @@
       }
     }
 
-    if (flipped) {
-      const note = stage.appendChild(el('div', 'notice-lines'));
-      ['같은 조서를 읽고 서로 반대에 닿은 사람들이 있다.', '회항에는 그 둘을 맞춰줄 사람이 없다. 두 판결은 그냥 나란히 남는다.']
-        .forEach((t) => note.appendChild(el('p', 'notice-line', esc(t))));
-      await pause(600);
-      for (const p of note.children) { p.classList.add('on'); await pause(900); }
-    }
     endButtons();
 
     // 통지서 한 장 — 한 줄씩 올라오다, 주문에서 숨을 멈추고, 도장이 떨어진다.
@@ -1521,7 +1513,6 @@
     async function sheet(v, i) {
       const guilty = v.verdict === 'guilty';
       const judge = v.judgeName || '이름을 밝히지 않은 탐정';
-      const last = i === list.length - 1;
       const lines = guilty ? [
         ['sh-sentence', '선고 — 사형'],
         ['', '재판은 열렸으나 오래 걸리지 않았다. 회항에서 탐정의 말은 판결과 같은 무게를 가진다. 배심원은 십일 분 만에 돌아왔다.'],
@@ -1533,24 +1524,21 @@
         ['', '서류에 도장이 찍혔고, 당신은 그날 밤 뒷문으로 나왔다.'],
         ['sh-quiet', '아무도 사과하지 않았다. 안개 속으로 걸어 나가는 당신의 뒷모습을 간수 하나가 오래 지켜봤다고 한다.'],
       ];
-      if (i && list[0].verdict !== v.verdict) lines.splice(1, 0, ['sh-quiet', '앞의 판결과 정반대다.']);
 
       const paper = stage.appendChild(el('article', 'sheet'));
       paper.innerHTML =
-        `<header class="sh-head sh-part"><span>회항 지방법원</span><span>${i ? '두 번째 판결 통지' : '판결 통지'}</span></header>` +
+        `<header class="sh-head sh-part"><span>회항 지방법원</span><span>판결 통지</span></header>` +
         `<dl class="sh-meta">` +
           `<div class="sh-part"><dt>피고인</dt><dd>${esc(r.name)}</dd></div>` +
           `<div class="sh-part"><dt>사건</dt><dd>웬들 저택 살인</dd></div>` +
           `<div class="sh-part"><dt>심리</dt><dd>탐정 ${esc(judge)}</dd></div>` +
         `</dl>` +
-        `<p class="sh-lead sh-part">${esc(r.name)}. ` + (i
-          ? '당신의 조서는 한 번 더 읽혔다. 이번에는 다른 사람이었다.'
-          : `탐정 ${esc(judge)}${josa(judge, '이/가')} 당신의 진술을 읽었다.`) + `</p>` +
+        `<p class="sh-lead sh-part">${esc(r.name)}. 탐정 ${esc(judge)}${josa(judge, '이/가')} 당신의 진술을 읽었다.</p>` +
         `<div class="sh-order sh-part"><span class="sh-label">주문</span><span class="sh-dots"><i></i><i></i><i></i></span></div>` +
         `<div class="sh-verdict ${guilty ? 'guilty' : 'innocent'}"><span>${guilty ? '유죄' : '무죄'}</span></div>` +
         `<div class="sh-body">${lines.map(([c, t]) => `<p class="${c}">${esc(t)}</p>`).join('')}</div>` +
         (v.reason ? `<blockquote class="sh-reason sh-part"><span>탐정의 소견</span><p>${esc(v.reason)}</p></blockquote>` : '') +
-        (last ? `<p class="sh-ps sh-part">당신을 판결한 사람도 당신과 똑같은 밤을 보냈고, 지금 어딘가에서 자기 판결을 기다리고 있다.</p>` : '') +
+        `<p class="sh-ps sh-part">당신을 판결한 사람도 당신과 똑같은 밤을 보냈고, 지금 어딘가에서 자기 판결을 기다리고 있다.</p>` +
         `<footer class="sh-foot sh-part">회항 지방법원</footer>`;
 
       stage.scrollTop = 0;
