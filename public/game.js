@@ -857,6 +857,7 @@
   };
   function sendVerdict(v) {
     outbox.put(v);
+    if (window.norara) norara.ev('judge');
     return deliver('/api/verdict', v)
       .then(() => outbox.drop(v.caseId))
       .catch((e) => {
@@ -886,6 +887,8 @@
     row.style.justifyContent = 'center';
     const go = row.appendChild(el('button', 'btn', '시작하기'));
     await new Promise((r) => { go.onclick = r; });
+    state.began = Date.now();
+    if (window.norara) norara.ev('start', { n: 1 });
     corner.hidden = false;
     document.getElementById('book').onclick = openNotes;
     stage.classList.remove('mid');
@@ -1297,6 +1300,9 @@
       res = await deliver('/api/statement', body, {
         onRetry: () => { hood.textContent = '서기가 조서를 옮겨 적고 있다…'; hood.classList.add('busy'); },
       });
+      if (window.norara) {
+        norara.ev('end', { n: 1, sec: Math.round((Date.now() - (state.began || Date.now())) / 1000) });
+      }
     } catch (e) {
       console.error('[진술 제출 실패]', e);
     }
