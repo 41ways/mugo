@@ -1,27 +1,256 @@
 /* 무고 — 회항의 밤. 잉크, 안개, 등불 하나. */
 
+/* 색은 여기 한곳에 모아 둔다. 아래 규칙에는 색 리터럴을 두지 않는다 —
+   밤 그 자체(사진판·복면·어둠 속 몸싸움)와 핏자국처럼 두 테마에서
+   같아야 하는 것만 빼고. */
+
+/* 등불을 켜 둔 밤. 조서를 펴 놓은 책상 위가 기본이다. */
 :root{
-  --ink:#0b0b0d;          /* 가장 어두운 바닥 */
-  --ink2:#131316;
-  --paper:#e9e0cd;        /* 조서·종이 */
-  --paper2:#d6cab0;
-  --fog:#7f8489;
-  --dim:#aaa494;
-  --faint:#807a6d;
-  --lamp:#d8a24a;         /* 등불 */
-  --lamp-soft:#3a2c16;
-  --blood:#7d1c14;
-  --cold:#5d7a80;
-  --line:#2b2a2c;
+  color-scheme:light;
+
+  --bg:#ded1b4;                  /* 화면 바닥 — 등불이 닿은 누런 종이 */
+  --bg2:#efe6d2;                 /* 한 겹 떠 있는 면 — 관찰 결과 팝업, 펼친 수첩 */
+  --fg:#211b12;                  /* 본문 잉크 */
+  --fg-slow:#232b30;             /* 시간이 느려졌을 때 — 핏기가 가신 글자 */
+  --dim:#4c4333;                 /* 한 톤 죽인 글 */
+  --faint:#5e5445;               /* 가장 흐린 글 — 눈금·라벨 */
+  --fog:#414d57;                 /* 안개 — 묻는 말, 읊조림 */
+  --line:#bba98a;                /* 테두리 */
+  --wash:rgba(45,32,12,.05);     /* 바탕 위에 아주 옅게 깐 면 */
+  --wash2:rgba(45,32,12,.085);   /* 조금 더 또렷한 면 — 말풍선·입력칸 */
+  --scrim:rgba(52,38,16,.55);    /* 팝업 뒤에 까는 가림막 */
+  --veil:rgba(236,227,208,.96);  /* 수첩을 펼쳤을 때 화면을 덮는 막 */
+  --veil-mid:rgba(236,227,208,.72);
+  --chip:rgba(248,242,228,.78);       /* 구석 단추 */
+  --chip-solid:rgba(248,242,228,.94);
+  --placeholder:#7a6f5a;
+
+  /* 등불 — 칠하는 쪽이자 강조하는 글자다. 종이 위에서도 읽혀야 해서 깊게 탄다 */
+  --lamp:#7d4906;
+  --lamp-ink:#fdf3e0;            /* 등불 위에 얹는 글자 */
+  --lamp-wash:rgba(125,73,6,.09);
+  --lamp-wash2:rgba(125,73,6,.15);
+  --lamp-line:rgba(125,73,6,.5);
+  --lamp-glow:rgba(125,73,6,.32);
+  --lamp-haze:rgba(125,73,6,.14);
+
+  /* 조서·편지·통지서 — 등불이 바로 닿아 바닥보다 밝다 */
+  --paper:#f7f0e0;
+  --paper2:#ece2ca;
+  --paper3:#dbcca8;              /* 봉투 — 가장 가라앉은 종이 */
+  --paper-ink:#231f1a;
+  --paper-ink2:#5d5343;
+  --paper-faint:#786a53;
+  --paper-line:#cdbf9f;
+  --paper-edge:#a08a5e;
+  --paper-wash:rgba(160,138,94,.09);
+  --paper-rim:rgba(80,60,30,.08);
+  --paper-sheen:rgba(255,255,255,.35);
+  --shadow-paper:0 14px 30px rgba(74,54,22,.24);
+  --shadow-sheet:0 30px 70px rgba(74,54,22,.34), 0 0 0 1px var(--paper-rim);
+  --shadow-pop:0 24px 60px rgba(74,54,22,.3);
+
+  /* 두 테마에서 그대로 두는 색 */
+  --blood:#7d1c14;               /* 핏자국 */
+  --blood-ink:#f1dcd8;
+  --guilty:#9a2418;              /* 유죄 도장 */
+  --calm:#3f5448;                /* 무죄 쪽 */
+  --right:#5c7a52;
+  --wrong:#8c2f24;
+  --cold:#5d7a80;                /* 소장 — 차가운 쪽 */
+  --cold-text:#2f545c;
+  --cold-wash:rgba(93,122,128,.1);
+  --man:#8a8071;                 /* 이름을 대지 않는 남자 — 색이 없다 */
+  --man-text:#5a5244;
+  --etc:#8b7c6c;
+  --etc-text:#655545;
+
+  /* 판결 통지 — 봉투를 뜯는 방 */
+  --notice-bg:#c1b08d;
+  --notice-fg:#231d14;
+  --notice-fg2:#4c4334;
+  --notice-vig:rgba(56,38,12,.55);
+  --notice-shadow:rgba(72,52,20,.22);
+
+  /* 어둠의 깊이 */
+  --vig:rgba(78,54,18,.26);
+  --vig2:rgba(78,54,18,.42);
+  --grain-op:.05;
+
   --serif:"Noto Serif KR","Nanum Myeongjo","Apple SD Gothic Neo",Georgia,serif;
   --mono:ui-monospace,SFMono-Regular,Menlo,"Courier New",monospace;
+}
+
+/* 등불을 껐다. 기기 설정이 어두우면 여기를 따르되, 손으로 「등불 켜기」를
+   고른 사람은 빼 준다. 토큰만 바꾼다 — 컴포넌트 규칙은 넣지 않는다. */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+
+    --bg:#0a0a0c;
+    --bg2:#16161a;
+    --fg:#e9e0cd;
+    --fg-slow:#cfd3d6;
+    --dim:#aaa494;
+    --faint:#8a8375;
+    --fog:#8b9096;
+    --line:#2b2a2c;
+    --wash:rgba(255,255,255,.022);
+    --wash2:rgba(255,255,255,.04);
+    --scrim:rgba(4,4,6,.8);
+    --veil:rgba(6,6,8,.94);
+    --veil-mid:rgba(6,6,8,.72);
+    --chip:rgba(11,11,13,.72);
+    --chip-solid:rgba(11,11,13,.92);
+    --placeholder:#5b574e;
+
+    --lamp:#d8a24a;
+    --lamp-ink:#1a1206;
+    --lamp-wash:rgba(216,162,74,.07);
+    --lamp-wash2:rgba(216,162,74,.12);
+    --lamp-line:rgba(216,162,74,.45);
+    --lamp-glow:rgba(216,162,74,.45);
+    --lamp-haze:rgba(216,162,74,.16);
+
+    /* 종이는 끝까지 종이다. 새까맣게 칠하지 않고 한 단계 가라앉히기만 하고,
+       대신 둘레를 눌러 — 짙은 그림자와 안쪽으로 먹인 그늘 — 밤에 놓인
+       한 장으로 보이게 한다. */
+    --paper:#bdb094;
+    --paper2:#b2a589;
+    --paper3:#9a8e72;
+    --paper-ink:#1b170f;
+    --paper-ink2:#3a3427;
+    --paper-faint:#443c2b;
+    --paper-line:#8e8164;
+    --paper-edge:#6f6247;
+    --paper-wash:rgba(58,44,18,.1);
+    --paper-rim:rgba(0,0,0,.45);
+    --paper-sheen:rgba(255,246,226,.14);
+    --shadow-paper:0 16px 40px rgba(0,0,0,.72), 0 0 0 1px rgba(0,0,0,.55), inset 0 0 46px rgba(28,20,8,.34);
+    --shadow-sheet:0 30px 76px rgba(0,0,0,.8), 0 0 0 1px var(--paper-rim), inset 0 0 60px rgba(28,20,8,.3);
+    --shadow-pop:0 24px 70px rgba(0,0,0,.7);
+
+    --blood:#7d1c14;
+    --blood-ink:#f1dcd8;
+    --guilty:#9a2418;
+    --calm:#3f5448;
+    --right:#5c7a52;
+    --wrong:#c98d86;
+    --cold:#5d7a80;
+    --cold-text:#8fb0b6;
+    --cold-wash:rgba(93,122,128,.055);
+    --man:#7d7566;
+    --man-text:#a89c85;
+    --etc:#6e5f52;
+    --etc-text:#a2907c;
+
+    --notice-bg:#15120e;
+    --notice-fg:#e9e0cd;
+    --notice-fg2:#a89c85;
+    --notice-vig:rgba(0,0,0,.78);
+    --notice-shadow:rgba(0,0,0,.6);
+
+    --vig:rgba(0,0,0,.62);
+    --vig2:rgba(0,0,0,.8);
+    --grain-op:.045;
+  }
+}
+
+/* 손으로 고른 「등불 끄기」 — 기기 설정과 상관없이 밤이다 */
+:root[data-theme="dark"]{
+  color-scheme:dark;
+
+  --bg:#0a0a0c;
+  --bg2:#16161a;
+  --fg:#e9e0cd;
+  --fg-slow:#cfd3d6;
+  --dim:#aaa494;
+  --faint:#8a8375;
+  --fog:#8b9096;
+  --line:#2b2a2c;
+  --wash:rgba(255,255,255,.022);
+  --wash2:rgba(255,255,255,.04);
+  --scrim:rgba(4,4,6,.8);
+  --veil:rgba(6,6,8,.94);
+  --veil-mid:rgba(6,6,8,.72);
+  --chip:rgba(11,11,13,.72);
+  --chip-solid:rgba(11,11,13,.92);
+  --placeholder:#5b574e;
+
+  --lamp:#d8a24a;
+  --lamp-ink:#1a1206;
+  --lamp-wash:rgba(216,162,74,.07);
+  --lamp-wash2:rgba(216,162,74,.12);
+  --lamp-line:rgba(216,162,74,.45);
+  --lamp-glow:rgba(216,162,74,.45);
+  --lamp-haze:rgba(216,162,74,.16);
+
+  --paper:#bdb094;
+  --paper2:#b2a589;
+  --paper3:#9a8e72;
+  --paper-ink:#1b170f;
+  --paper-ink2:#3a3427;
+  --paper-faint:#443c2b;
+  --paper-line:#8e8164;
+  --paper-edge:#6f6247;
+  --paper-wash:rgba(58,44,18,.1);
+  --paper-rim:rgba(0,0,0,.45);
+  --paper-sheen:rgba(255,246,226,.14);
+  --shadow-paper:0 16px 40px rgba(0,0,0,.72), 0 0 0 1px rgba(0,0,0,.55), inset 0 0 46px rgba(28,20,8,.34);
+  --shadow-sheet:0 30px 76px rgba(0,0,0,.8), 0 0 0 1px var(--paper-rim), inset 0 0 60px rgba(28,20,8,.3);
+  --shadow-pop:0 24px 70px rgba(0,0,0,.7);
+
+  --blood:#7d1c14;
+  --blood-ink:#f1dcd8;
+  --guilty:#9a2418;
+  --calm:#3f5448;
+  --right:#5c7a52;
+  --wrong:#c98d86;
+  --cold:#5d7a80;
+  --cold-text:#8fb0b6;
+  --cold-wash:rgba(93,122,128,.055);
+  --man:#7d7566;
+  --man-text:#a89c85;
+  --etc:#6e5f52;
+  --etc-text:#a2907c;
+
+  --notice-bg:#15120e;
+  --notice-fg:#e9e0cd;
+  --notice-fg2:#a89c85;
+  --notice-vig:rgba(0,0,0,.78);
+  --notice-shadow:rgba(0,0,0,.6);
+
+  --vig:rgba(0,0,0,.62);
+  --vig2:rgba(0,0,0,.8);
+  --grain-op:.045;
+}
+
+/* 여기는 테마와 상관없이 밤이다 — 사진판, 화면을 다 덮는 사진, 복면,
+   어둠 속 몸싸움. 바닥이 사진이거나 새까매서 밝은 팔레트를 그대로
+   쓰면 글자가 묻힌다. 그래서 이 안에서만 밤의 값으로 되돌린다. */
+.plate, .dark, #scene, .hood, body.blind{
+  --fg:#e9e0cd;
+  --dim:#c2b8a2;
+  --faint:#9c9382;
+  --fog:#98a0a6;
+  --line:#2b2a2c;
+  --lamp:#d8a24a;
+  --lamp-ink:#1a1206;
+  --lamp-wash:rgba(216,162,74,.07);
+  --lamp-wash2:rgba(216,162,74,.12);
+  --lamp-line:rgba(216,162,74,.45);
+  --lamp-glow:rgba(216,162,74,.45);
+  --wash:rgba(255,255,255,.022);
+  --wash2:rgba(255,255,255,.04);
+  --chip:rgba(11,11,13,.72);
+  --chip-solid:rgba(11,11,13,.92);
 }
 
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 html,body{height:100%}
 body{
-  margin:0; background:var(--ink); color:var(--paper);
+  margin:0; background:var(--bg); color:var(--fg);
   font-family:var(--serif); line-height:1.9; letter-spacing:-.01em;
   word-break:keep-all; overflow-wrap:break-word;
   overflow:hidden;
@@ -31,7 +260,7 @@ body{
 /* ── 화면 위에 항상 깔리는 것들 ─────────────────────────── */
 
 #grain{
-  position:fixed; inset:-50%; z-index:60; pointer-events:none; opacity:.045;
+  position:fixed; inset:-50%; z-index:60; pointer-events:none; opacity:var(--grain-op);
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
   animation:grain 900ms steps(3,end) infinite;
 }
@@ -40,21 +269,21 @@ body{
 }
 #vignette{
   position:fixed; inset:0; z-index:55; pointer-events:none;
-  background:radial-gradient(120% 90% at 50% 42%, transparent 38%, rgba(0,0,0,.62) 100%);
+  background:radial-gradient(120% 90% at 50% 42%, transparent 38%, var(--vig) 100%);
 }
 
 /* 슬로모션 표시줄 — 시간이 느려졌다는 유일한 눈금 */
 #slowbar{
   position:fixed; left:0; right:0; top:0; height:2px; z-index:58;
-  background:rgba(216,162,74,.1); opacity:0; transition:opacity .5s;
+  background:var(--lamp-wash); opacity:0; transition:opacity .5s;
 }
 #slowbar i{
   display:block; height:100%; width:0%;
   background:linear-gradient(90deg,transparent,var(--lamp));
 }
 body.slow #slowbar{opacity:1}
-body.slow{--paper:#cfd3d6}
-body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 20%, rgba(0,0,0,.8) 100%)}
+body.slow{--fg:var(--fg-slow)}
+body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 20%, var(--vig2) 100%)}
 
 /* ── 무대 ───────────────────────────────────────────── */
 
@@ -70,6 +299,9 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
   overflow:hidden;
 }
 #flow{flex:1 1 0; min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:0; justify-content:flex-start}
+/* 오른쪽 위 구석 단추(수첩·등불) 자리를 비워 둔다. 안 그러면 첫 줄이 단추 밑으로 들어간다.
+   제목·판결처럼 가운데로 모으는 화면은 글이 위로 붙지 않으니 그대로 둔다. */
+#stage:not(.mid) #flow{padding-top:clamp(30px,4.4vh,40px)}
 #flow > *{flex:none}
 #flow > *:last-child{margin-bottom:0}
 .plate, .file, .pages{margin-block:clamp(8px,1.6vh,16px)}
@@ -84,7 +316,7 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
 #opts:empty{display:none}
 #opts:not(:empty){
   border:1px solid var(--line); border-radius:4px;
-  background:rgba(255,255,255,.014);
+  background:var(--wash);
   padding:clamp(11px,1.7vh,15px) clamp(12px,2vw,16px);
 }
 #tapslot{flex:none; min-height:52px; display:flex; align-items:center; justify-content:flex-end}
@@ -101,8 +333,8 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
 .title{text-align:center; padding:clamp(20px,10vh,90px) 0 10px}
 .title .han{
   font-size:clamp(58px,17vw,116px); font-weight:700; letter-spacing:.16em;
-  margin:0 0 4px; color:var(--paper); text-indent:.16em;
-  text-shadow:0 0 44px rgba(216,162,74,.16);
+  margin:0 0 4px; color:var(--fg); text-indent:.16em;
+  text-shadow:0 0 44px var(--lamp-haze);
 }
 .title .sub{
   font-size:12.5px; letter-spacing:.42em; color:var(--faint);
@@ -115,7 +347,7 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
 
 /* ── 서술 ───────────────────────────────────────────── */
 
-.say{margin:0 0 1.05em; font-size:clamp(16px,4.1vw,17.5px); color:var(--paper); text-wrap:pretty}
+.say{margin:0 0 1.05em; font-size:clamp(16px,4.1vw,17.5px); color:var(--fg); text-wrap:pretty}
 /* 한 낱말씩 떠오른다. 한 줄이 통째로 튀어나오면 딱딱하다. */
 .w{display:inline-block; animation:word .62s cubic-bezier(.2,.7,.3,1) both}
 @keyframes word{
@@ -129,8 +361,8 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
 /* ── 대화 — 누가 말하는지 한눈에 ──────────────────────────── */
 .said{
   margin:0 0 11px; padding:11px 16px; border-radius:3px; max-width:86%;
-  background:rgba(255,255,255,.024); border-left:2px solid var(--line);
-  color:var(--paper); font-size:16px; line-height:1.8;
+  background:var(--wash2); border-left:2px solid var(--line);
+  color:var(--fg); font-size:16px; line-height:1.8;
 }
 .said .who{
   display:block; font-family:var(--mono); font-size:11px; letter-spacing:.16em;
@@ -140,17 +372,17 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
 .said.s-me{
   margin-left:auto; margin-right:0;
   border-left:0; border-right:2px solid var(--lamp);
-  background:rgba(216,162,74,.065);
+  background:var(--lamp-wash2);
 }
 .said.s-me .who{color:var(--lamp); text-align:right}
 /* 소장 — 차가운 쪽 */
-.said.s-kel{border-left-color:var(--cold); background:rgba(93,122,128,.055)}
-.said.s-kel .who{color:#8fb0b6}
+.said.s-kel{border-left-color:var(--cold); background:var(--cold-wash)}
+.said.s-kel .who{color:var(--cold-text)}
 /* 이름을 대지 않는 남자 — 색이 없다 */
-.said.s-man{border-left-color:#7d7566}
-.said.s-man .who{color:#a89c85}
-.said.s-etc{border-left-color:#6e5f52}
-.said.s-etc .who{color:#a2907c}
+.said.s-man{border-left-color:var(--man)}
+.said.s-man .who{color:var(--man-text)}
+.said.s-etc{border-left-color:var(--etc)}
+.said.s-etc .who{color:var(--etc-text)}
 @media (max-width:520px){ .said{max-width:94%} }
 .hr{height:1px; background:var(--line); margin:30px 0; border:0}
 .chapter{
@@ -163,17 +395,17 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
 .tap{
   display:inline-flex; align-items:center; gap:11px; align-self:flex-end;
   padding:11px 20px 11px 24px; cursor:pointer; user-select:none;
-  color:#1a1206; font-family:var(--mono); font-size:13px; font-weight:600; letter-spacing:.18em;
+  color:var(--lamp-ink); font-family:var(--mono); font-size:13px; font-weight:600; letter-spacing:.18em;
   background:var(--lamp); border:1px solid var(--lamp);
-  border-radius:3px; box-shadow:0 0 0 0 rgba(216,162,74,.45);
+  border-radius:3px; box-shadow:0 0 0 0 var(--lamp-glow);
   animation:beckon 2.4s ease-in-out infinite;
   transition:filter .16s, transform .16s;
 }
 .tap::after{content:'▸'; font-size:15px; animation:nudge 1.6s ease-in-out infinite}
 @media (hover:hover){.tap:hover{filter:brightness(1.12); transform:translateX(2px)}}
 @keyframes beckon{
-  0%,100%{box-shadow:0 0 0 0 rgba(216,162,74,.42)}
-  60%{box-shadow:0 0 0 10px rgba(216,162,74,0)}
+  0%,100%{box-shadow:0 0 0 0 var(--lamp-glow)}
+  60%{box-shadow:0 0 0 10px transparent}
 }
 @keyframes nudge{0%,100%{transform:translateX(0);opacity:.6}50%{transform:translateX(4px);opacity:1}}
 
@@ -181,27 +413,27 @@ body.slow #vignette{background:radial-gradient(110% 80% at 50% 45%, transparent 
 
 .opts{display:flex; flex-direction:column; gap:7px; margin:0}
 button.opt{
-  font:inherit; text-align:left; cursor:pointer; color:var(--paper);
-  background:rgba(255,255,255,.017); border:1px solid var(--line);
+  font:inherit; text-align:left; cursor:pointer; color:var(--fg);
+  background:var(--wash); border:1px solid var(--line);
   border-radius:3px; padding:11px 16px; font-size:15.5px; line-height:1.55;
   transition:border-color .18s, background .18s, transform .18s;
 }
-@media (hover:hover){button.opt:hover:not(:disabled){border-color:var(--lamp); background:rgba(216,162,74,.06); transform:translateX(3px)}}
+@media (hover:hover){button.opt:hover:not(:disabled){border-color:var(--lamp); background:var(--lamp-wash); transform:translateX(3px)}}
 button.opt:disabled{opacity:.35; cursor:default}
 button.opt .cost{float:right; font-family:var(--mono); font-size:11px; color:var(--faint); letter-spacing:.1em}
-button.opt.picked{border-color:var(--lamp); background:rgba(216,162,74,.09)}
-button.opt.wrong{border-color:var(--blood); color:#c98d86}
-button.opt.right{border-color:#5c7a52}
+button.opt.picked{border-color:var(--lamp); background:var(--lamp-wash2)}
+button.opt.wrong{border-color:var(--blood); color:var(--wrong)}
+button.opt.right{border-color:var(--right)}
 
 .btn{
   font:inherit; cursor:pointer; border-radius:3px; padding:12px 22px; font-size:14.5px;
-  background:var(--lamp); color:#191206; border:1px solid var(--lamp); font-weight:600;
+  background:var(--lamp); color:var(--lamp-ink); border:1px solid var(--lamp); font-weight:600;
   letter-spacing:.02em; transition:filter .16s;
 }
 .btn:hover{filter:brightness(1.12)}
 .btn.ghost{background:transparent; color:var(--dim); border-color:var(--line); font-weight:400}
-.btn.ghost:hover{color:var(--paper); border-color:var(--faint); filter:none}
-.btn.danger{background:var(--blood); border-color:var(--blood); color:#f1dcd8}
+.btn.ghost:hover{color:var(--fg); border-color:var(--faint); filter:none}
+.btn.danger{background:var(--blood); border-color:var(--blood); color:var(--blood-ink)}
 .btn:disabled{opacity:.3; cursor:default; filter:none}
 .row{display:flex; gap:10px; flex-wrap:wrap; margin:0; align-items:center}
 
@@ -256,7 +488,7 @@ button.opt.right{border-color:#5c7a52}
 
 /* 관찰 결과 카드 */
 .clue{
-  border-left:2px solid var(--lamp); background:rgba(216,162,74,.05);
+  border-left:2px solid var(--lamp); background:var(--lamp-wash);
   padding:13px 16px; margin:12px 0; border-radius:0 3px 3px 0;
   animation:rise .45s both;
 }
@@ -270,16 +502,16 @@ button.opt.right{border-color:#5c7a52}
 /* ── 조서 · 증거 ────────────────────────────────────── */
 
 .file{
-  background:linear-gradient(180deg,#efe7d5,#e2d8c0); color:#231f1a;
+  background:linear-gradient(180deg,var(--paper),var(--paper2)); color:var(--paper-ink);
   padding:24px 24px 20px; border-radius:2px; margin:22px 0;
-  box-shadow:0 14px 34px rgba(0,0,0,.5); font-size:15px; line-height:1.85;
+  box-shadow:var(--shadow-paper); font-size:15px; line-height:1.85;
   transform:rotate(-.25deg);
 }
 .file{max-height:44dvh; overflow-y:auto}
 .file h4{
   margin:0 0 14px; font-family:var(--mono); font-size:10.5px; letter-spacing:.3em;
-  text-transform:uppercase; color:#8a7c66; font-weight:400;
-  border-bottom:1px solid #c5b99f; padding-bottom:10px;
+  text-transform:uppercase; color:var(--paper-faint); font-weight:400;
+  border-bottom:1px solid var(--paper-line); padding-bottom:10px;
 }
 .file ul{margin:0; padding-left:1.1em}
 .file li{margin:0 0 7px}
@@ -289,21 +521,21 @@ button.opt.right{border-color:#5c7a52}
   transform:rotate(-4deg); opacity:.8;
 }
 .file .memo{
-  font-family:var(--mono); font-size:13px; line-height:1.9; color:#3b352c;
-  border-left:2px solid #b8a985; padding-left:12px; margin:4px 0;
+  font-family:var(--mono); font-size:13px; line-height:1.9; color:var(--paper-ink2);
+  border-left:2px solid var(--paper-edge); padding-left:12px; margin:4px 0;
 }
-.file .empty{color:#8a7c66; font-style:italic}
+.file .empty{color:var(--paper-faint); font-style:italic}
 
 /* ── 입력 ───────────────────────────────────────────── */
 
 input[type=text], input[type=email], textarea{
-  font:inherit; width:100%; color:var(--paper); background:rgba(255,255,255,.03);
+  font:inherit; width:100%; color:var(--fg); background:var(--wash2);
   border:1px solid var(--line); border-bottom-color:var(--faint); border-radius:3px;
   padding:13px 15px; font-size:16.5px; outline:none; transition:border-color .18s;
   resize:none;
 }
 input:focus, textarea:focus{border-color:var(--lamp)}
-input::placeholder, textarea::placeholder{color:#4b4842}
+input::placeholder, textarea::placeholder{color:var(--placeholder)}
 label.lab{
   display:block; font-family:var(--mono); font-size:10.5px; letter-spacing:.26em;
   color:var(--faint); text-transform:uppercase; margin:0 0 9px;
@@ -330,7 +562,7 @@ body.blind #vignette{background:radial-gradient(80% 60% at 50% 50%, rgba(0,0,0,.
 @keyframes fl{0%{opacity:.75}100%{opacity:0}}
 
 /* 시간 제한 막대 */
-.timer{height:2px; background:rgba(216,162,74,.14); border-radius:2px; overflow:hidden; margin:16px 0 0}
+.timer{height:2px; background:var(--lamp-wash2); border-radius:2px; overflow:hidden; margin:16px 0 0}
 .timer i{display:block; height:100%; background:var(--lamp); width:100%}
 
 /* ── 수첩 (찢어낼 장 고르기) ────────────────────────── */
@@ -338,7 +570,7 @@ body.blind #vignette{background:radial-gradient(80% 60% at 50% 50%, rgba(0,0,0,.
 .pages{display:flex; flex-direction:column; gap:7px; margin:0; max-height:52dvh; overflow-y:auto; scrollbar-width:thin}
 .page{
   display:flex; gap:12px; align-items:flex-start; cursor:pointer;
-  background:rgba(233,224,205,.055); border:1px solid var(--line); border-radius:3px;
+  background:var(--wash2); border:1px solid var(--line); border-radius:3px;
   padding:13px 15px; font-size:14.5px; line-height:1.7; transition:.18s;
 }
 .page:hover{border-color:var(--faint)}
@@ -349,7 +581,7 @@ body.blind #vignette{background:radial-gradient(80% 60% at 50% 50%, rgba(0,0,0,.
 .page.keep .mark{background:var(--lamp); border-color:var(--lamp)}
 .page.keep .mark::after{
   content:''; position:absolute; left:4px; top:.5px; width:4px; height:9px;
-  border:solid #191206; border-width:0 2px 2px 0; transform:rotate(42deg);
+  border:solid var(--lamp-ink); border-width:0 2px 2px 0; transform:rotate(42deg);
 }
 .page.torn{opacity:.34; text-decoration:line-through; text-decoration-color:var(--blood)}
 
@@ -364,7 +596,7 @@ body.blind #vignette{background:radial-gradient(80% 60% at 50% 50%, rgba(0,0,0,.
 
 .token{
   font-family:var(--mono); font-size:13px; color:var(--lamp); word-break:break-all;
-  background:rgba(216,162,74,.06); border:1px dashed rgba(216,162,74,.3);
+  background:var(--lamp-wash); border:1px dashed var(--lamp-line);
   padding:11px 13px; border-radius:3px; margin:12px 0;
 }
 .token a{color:var(--lamp)}
@@ -375,7 +607,7 @@ footer.credit{
 }
 footer.credit a{color:var(--dim)}
 
-.err{color:#c98d86; font-size:13.5px; margin:10px 0 0}
+.err{color:var(--wrong); font-size:13.5px; margin:10px 0 0}
 
 /* 움직임을 줄여달라고 한 사람에게는 줄여준다 */
 @media (prefers-reduced-motion:reduce){
@@ -387,7 +619,7 @@ footer.credit a{color:var(--dim)}
 .file.hand{
   font-family:"Nanum Myeongjo","Noto Serif KR",Georgia,serif;
   transform:rotate(.4deg); line-height:1.95;
-  background:linear-gradient(180deg,#efe9da,#e4dcc6);
+  background:linear-gradient(180deg,var(--paper),var(--paper2));
 }
 .file.hand h4{letter-spacing:.2em}
 
@@ -400,7 +632,7 @@ footer.credit a{color:var(--dim)}
 .dark.spatial .cue{max-width:22em}
 
 button.dopt{
-  font:inherit; font-family:var(--serif); cursor:pointer; color:var(--paper);
+  font:inherit; font-family:var(--serif); cursor:pointer; color:var(--fg);
   background:none; border:0; padding:9px 12px; font-size:16px; letter-spacing:.01em;
   transition:color .16s, opacity .3s, transform .16s; line-height:1.5;
   position:relative;
@@ -446,7 +678,7 @@ button.dopt.faded{opacity:.16}
 body.blind #vignette{
   background:radial-gradient(125% 105% at 50% 45%, rgba(0,0,0,0) 30%, rgba(0,0,0,.74) 100%);
 }
-body.blind .tap{background:var(--lamp); border-color:var(--lamp); color:#1a1206}
+body.blind .tap{background:var(--lamp); border-color:var(--lamp); color:var(--lamp-ink)}
 
 /* 사진 그림판 — 선 그림과 같은 자리에 앉되, 회항의 색으로 눌러둔다 */
 .plate.photo img{display:block; width:100%; height:auto}
@@ -461,7 +693,7 @@ body.slow .plate.photo img{filter:contrast(1.04) brightness(.96)}
 
 /* ── 관찰 결과 팝업 ─────────────────────────────────────── */
 .clue-back{
-  position:fixed; inset:0; z-index:62; background:rgba(4,4,6,.8); cursor:pointer;
+  position:fixed; inset:0; z-index:62; background:var(--scrim); cursor:pointer;
   animation:fadeIn .2s both;
 }
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -470,16 +702,16 @@ body.slow .plate.photo img{filter:contrast(1.04) brightness(.96)}
   transform:translate(-50%,-50%);
   animation:popIn .24s cubic-bezier(.2,.7,.3,1) both;
   width:min(560px, calc(100vw - 36px));
-  background:#131316; border:1px solid var(--line); border-left:2px solid var(--lamp);
+  background:var(--bg2); border:1px solid var(--line); border-left:2px solid var(--lamp);
   border-radius:3px; padding:22px 24px 18px; cursor:pointer;
-  box-shadow:0 24px 70px rgba(0,0,0,.7);
+  box-shadow:var(--shadow-pop);
 }
 @keyframes popIn{from{opacity:0;transform:translate(-50%,-45%) scale(.97)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
 .clue-pop .tag{
   display:block; font-family:var(--mono); font-size:10.5px; letter-spacing:.28em;
   color:var(--lamp); text-transform:uppercase; margin-bottom:10px;
 }
-.clue-pop p{margin:0; font-size:16px; line-height:1.85; color:var(--paper)}
+.clue-pop p{margin:0; font-size:16px; line-height:1.85; color:var(--fg)}
 .clue-pop p.more{margin-top:12px; padding-top:12px; border-top:1px solid var(--line); color:var(--dim); font-size:14.5px}
 .clue-pop .close{
   margin-top:16px; font-family:var(--mono); font-size:10.5px; letter-spacing:.24em;
@@ -567,7 +799,7 @@ button.dopt.pin .dtext{border-bottom-color:rgba(216,162,74,.5)}
 /* 선택지 바로 위에 붙는 질문 — 무엇을 고르는지가 안 보이면 안 된다 */
 p.ask{
   margin:0 0 2px; color:var(--lamp); font-size:clamp(15px,4vw,16.5px); line-height:1.7;
-  padding-left:12px; border-left:2px solid rgba(216,162,74,.45);
+  padding-left:12px; border-left:2px solid var(--lamp-line);
 }
 
 
@@ -641,34 +873,35 @@ p.ask{
   .plate .hot, .hot::before{animation:none}
 }
 
-/* ── 수첩 — 화면 구석에 늘 붙어 있다 ─────────────────────── */
+/* ── 구석 단추 — 등불과 수첩 ──────────────────────────── */
 
 #corner{
   position:fixed; top:clamp(10px,2vh,18px); right:clamp(10px,2.5vw,20px);
-  z-index:46; display:flex; gap:7px;
+  z-index:71; display:flex; gap:7px;   /* 판결 통지(70) 위로 — 거기서도 등불은 켜고 끌 수 있어야 한다 */
 }
-body.in-scene #corner, body.slow #corner{display:none}
-#corner[hidden]{display:none}   /* display:flex 가 hidden 을 이겨 제목·조회 화면에도 수첩 버튼이 떠 있었다 */
+/* 사진이 화면을 덮을 때, 시간이 느려졌을 때, 수첩을 펼친 동안만 물러난다 */
+body.in-scene #corner, body.slow #corner, body.reading #corner{display:none}
+#corner button[hidden]{display:none}   /* 수첩은 이야기가 시작된 뒤에만. 등불 단추는 늘 있다 */
 #corner button{
   font:inherit; font-family:var(--serif); cursor:pointer;
   font-size:11.5px; letter-spacing:.16em; color:var(--faint);
-  background:rgba(11,11,13,.72); border:1px solid var(--line); border-radius:3px;
+  background:var(--chip-solid); border:1px solid var(--line); border-radius:3px;
   padding:5px 9px; line-height:1;
   transition:color .16s, border-color .16s;
 }
-#corner button:hover{color:var(--lamp); border-color:rgba(216,162,74,.42)}
+#corner button:hover{color:var(--lamp); border-color:var(--lamp-line)}
 
 /* 펼친 수첩 — 화면을 덮고, 읽고 나면 덮는다 */
 #notes{
   position:fixed; inset:0; z-index:55; overflow-y:auto;
-  background:rgba(6,6,8,.94);
+  background:var(--veil);
   padding:clamp(18px,5vh,54px) clamp(16px,5vw,28px) clamp(60px,10vh,90px);
   animation:notesIn .26s ease-out both;
 }
 @keyframes notesIn{from{opacity:0} to{opacity:1}}
 #notes .sheet{max-width:640px; margin:0 auto}
 #notes h3{
-  margin:0 0 4px; font-size:19px; font-weight:400; color:var(--paper); letter-spacing:-.01em;
+  margin:0 0 4px; font-size:19px; font-weight:400; color:var(--fg); letter-spacing:-.01em;
 }
 #notes .who{margin:0 0 22px; font-size:12.5px; color:var(--faint); letter-spacing:.1em}
 #notes .ch{
@@ -682,23 +915,23 @@ body.in-scene #corner, body.slow #corner{display:none}
 }
 #notes .li::before{
   content:''; position:absolute; left:2px; top:.72em;
-  width:4px; height:1px; background:rgba(216,162,74,.55);
+  width:4px; height:1px; background:var(--lamp-line);
 }
 #notes .empty{color:var(--faint); font-size:14px; line-height:1.9}
 /* 덮는 단추 밑으로 글이 지나가도 읽기 어렵지 않게, 아래를 한 겹 어둡게 깐다 */
 #notes::after{
   content:''; position:fixed; left:0; right:0; bottom:0; height:clamp(70px,12vh,110px);
   pointer-events:none; z-index:1;
-  background:linear-gradient(transparent, rgba(6,6,8,.72) 45%, rgba(6,6,8,.95));
+  background:linear-gradient(transparent, var(--veil-mid) 45%, var(--veil));
 }
 #notes .shut{
   z-index:2;
   position:fixed; left:50%; bottom:clamp(18px,4vh,34px); transform:translateX(-50%);
   font:inherit; font-family:var(--serif); font-size:14px; cursor:pointer;
-  color:var(--paper); background:rgba(11,11,13,.92);
+  color:var(--fg); background:var(--chip-solid);
   border:1px solid var(--line); border-radius:3px; padding:9px 22px;
 }
-#notes .shut:hover{color:var(--lamp); border-color:rgba(216,162,74,.42)}
+#notes .shut:hover{color:var(--lamp); border-color:var(--lamp-line)}
 
 /* ── 끝에 펼치는 「이 밤에 당신이 고른 것」 ─────────────────── */
 /* 조서 한 장처럼 보이되, 화면 높이를 넘으면 그 안에서만 넘겨 읽는다 */
@@ -718,31 +951,31 @@ body.in-scene #corner, body.slow #corner{display:none}
 .file.recap .recap-body.at-end{-webkit-mask-image:none; mask-image:none}
 .file.recap .recap-more{
   flex:none; margin-top:8px; text-align:center;
-  font-family:var(--mono); font-size:10px; letter-spacing:.2em; color:#9a8a6c;
+  font-family:var(--mono); font-size:10px; letter-spacing:.2em; color:var(--paper-faint);
   transition:opacity .25s;
 }
 .file.recap .recap-more.gone{opacity:0; height:0; margin-top:0; overflow:hidden}   /* 다 보이면 자리도 비운다 */
-.file.recap .recap-item{padding:9px 0 10px; border-bottom:1px solid #d3c7ab}
+.file.recap .recap-item{padding:9px 0 10px; border-bottom:1px solid var(--paper-line)}
 .file.recap .recap-item:first-child{padding-top:2px}
 .file.recap .recap-item:last-child{border-bottom:0}
-.file.recap .recap-what{font-size:14.5px; line-height:1.65; color:#231f1a}
+.file.recap .recap-what{font-size:14.5px; line-height:1.65; color:var(--paper-ink)}
 .file.recap .recap-then{
   position:relative; margin-top:3px; padding-left:18px;
-  font-size:13px; line-height:1.6; color:#6d6252;
+  font-size:13px; line-height:1.6; color:var(--paper-ink2);
 }
-.file.recap .recap-then::before{content:'→'; position:absolute; left:0; top:0; color:#a08a5e}
+.file.recap .recap-then::before{content:'→'; position:absolute; left:0; top:0; color:var(--paper-edge)}
 /* 종이 위에 검은 스크롤바가 튀지 않게 */
-.file.recap .recap-body{scrollbar-width:thin; scrollbar-color:#b8a785 transparent}
+.file.recap .recap-body{scrollbar-width:thin; scrollbar-color:var(--paper-edge) transparent}
 .file.recap .recap-body::-webkit-scrollbar{width:6px}
 .file.recap .recap-body::-webkit-scrollbar-track{background:transparent}
-.file.recap .recap-body::-webkit-scrollbar-thumb{background:#b8a785; border-radius:3px}
+.file.recap .recap-body::-webkit-scrollbar-thumb{background:var(--paper-edge); border-radius:3px}
 
 /* ── 앞사람 사건 기록 — 크게, 한눈에 ─────────────────────── */
 .file.record{max-height:100%; overflow-y:auto; padding:18px 22px 16px}
 .file.record h4{margin-bottom:10px; padding-bottom:8px}
-.file.record .rec-items{font-size:13.5px; line-height:1.6; color:#4a4237; margin:0 0 12px}
+.file.record .rec-items{font-size:13.5px; line-height:1.6; color:var(--paper-ink2); margin:0 0 12px}
 .file.record .rec-sec{
-  margin-right:10px; font-family:var(--mono); font-size:10.5px; letter-spacing:.2em; color:#8a7c66;
+  margin-right:10px; font-family:var(--mono); font-size:10.5px; letter-spacing:.2em; color:var(--paper-faint);
 }
 .file.record .rec-log{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px}
 .file.record .rec-log li{position:relative; padding-left:20px}
@@ -750,10 +983,10 @@ body.in-scene #corner, body.slow #corner{display:none}
   content:''; position:absolute; left:0; top:.42em; width:9px; height:9px; background:var(--blood);
 }
 .file.record .rec-log b{
-  display:block; font-size:clamp(18px, 5vw, 22px); line-height:1.3; font-weight:700; color:#1e1914;
+  display:block; font-size:clamp(18px, 5vw, 22px); line-height:1.3; font-weight:700; color:var(--paper-ink);
   letter-spacing:-.01em;
 }
-.file.record .rec-log span{display:block; margin-top:1px; font-size:13.5px; line-height:1.5; color:#5b5143}
+.file.record .rec-log span{display:block; margin-top:1px; font-size:13.5px; line-height:1.5; color:var(--paper-ink2)}
 .file.record .rec-stamps{display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-top:14px}
 .file.record .rec-stamps .stamp{margin-top:0; font-size:12.5px}
 .file.record .rec-stamps .stamp + .stamp{transform:rotate(3deg)}
@@ -768,7 +1001,7 @@ body.in-scene #corner, body.slow #corner{display:none}
 /* ── 돌아온 사람에게 한 번만 묻는 화면 ─────────────────────── */
 .title.returning{padding-top:clamp(40px,18vh,160px)}
 .title.returning .ask-who{
-  margin:0 0 14px; font-size:clamp(24px,6.4vw,34px); font-weight:700; color:var(--paper);
+  margin:0 0 14px; font-size:clamp(24px,6.4vw,34px); font-weight:700; color:var(--fg);
   letter-spacing:-.01em; line-height:1.35;
 }
 .once-note{
@@ -779,7 +1012,7 @@ body.in-scene #corner, body.slow #corner{display:none}
 
 .notice{
   position:fixed; inset:0; z-index:70; overflow:hidden;
-  background:#15120e; color:#231f1a; font-family:var(--serif);
+  background:var(--notice-bg); color:var(--paper-ink); font-family:var(--serif);
   opacity:0; transition:opacity .8s ease-out;
 }
 .notice.on{opacity:1}
@@ -797,7 +1030,7 @@ body.in-scene #corner, body.slow #corner{display:none}
   content:''; position:absolute; inset:0; pointer-events:none; z-index:3; opacity:0; will-change:opacity;
 }
 .notice::before{
-  background:radial-gradient(ellipse 75% 70% at 50% 45%, transparent 40%, rgba(0,0,0,.78) 100%);
+  background:radial-gradient(ellipse 75% 70% at 50% 45%, transparent 40%, var(--notice-vig) 100%);
   transition:opacity 2.2s ease;
 }
 .notice::after{
@@ -846,17 +1079,17 @@ body.in-scene #corner, body.slow #corner{display:none}
 .env.on{opacity:1; transform:rotate(-1deg)}
 .env-paper{
   position:absolute; inset:0; border-radius:2px;
-  background:linear-gradient(180deg,#ebe0c6,#dccdab);
-  box-shadow:0 20px 44px rgba(0,0,0,.5);
+  background:linear-gradient(180deg,var(--paper2),var(--paper3));
+  box-shadow:var(--shadow-paper);
   display:flex; align-items:center; justify-content:center;
 }
 .env-title{
-  font-family:var(--serif); font-weight:700; color:#2b241c;
+  font-family:var(--serif); font-weight:700; color:var(--paper-ink);
   font-size:clamp(28px,8vw,38px); letter-spacing:.42em; text-indent:.42em;
 }
 .env-strip{
   position:absolute; left:0; right:0; top:0; height:17%;
-  background:#e9ddc3;
+  background:var(--paper2);
   transform-origin:12% 100%;
   transition:transform .6s cubic-bezier(.4,0,.6,1), opacity .5s ease .1s;
   will-change:transform, opacity;
@@ -868,9 +1101,9 @@ body.in-scene #corner, body.slow #corner{display:none}
 .sheet{
   width:min(560px, 92vw); position:relative;
   background:
-    linear-gradient(180deg, rgba(255,255,255,.35), transparent 18%),
-    linear-gradient(175deg,#f3ebda,#e6dac0);
-  box-shadow:0 30px 70px rgba(0,0,0,.6), 0 0 0 1px rgba(80,60,30,.08);
+    linear-gradient(180deg, var(--paper-sheen), transparent 18%),
+    linear-gradient(175deg,var(--paper),var(--paper2));
+  box-shadow:var(--shadow-sheet);
   border-radius:2px; padding:clamp(24px,5vw,40px) clamp(20px,5vw,40px) 26px;
   opacity:0; transform:translateY(90px) scale(.95);
   transition:opacity .8s ease, transform 1s cubic-bezier(.16,.84,.3,1);
@@ -883,18 +1116,18 @@ body.in-scene #corner, body.slow #corner{display:none}
 
 .sh-head{
   display:flex; justify-content:space-between; gap:12px; padding-bottom:12px; margin-bottom:16px;
-  border-bottom:1px solid #cdbf9f;
-  font-family:var(--mono); font-size:11px; letter-spacing:.28em; color:#8a7c66;
+  border-bottom:1px solid var(--paper-line);
+  font-family:var(--mono); font-size:11px; letter-spacing:.28em; color:var(--paper-faint);
 }
 .sh-meta{margin:0 0 18px; display:grid; gap:6px}
 .sh-meta div{display:grid; grid-template-columns:4.2em 1fr; gap:12px; align-items:baseline}
-.sh-meta dt{font-family:var(--mono); font-size:11px; letter-spacing:.2em; color:#8a7c66}
-.sh-meta dd{margin:0; font-size:16px; color:#231f1a}
+.sh-meta dt{font-family:var(--mono); font-size:11px; letter-spacing:.2em; color:var(--paper-faint)}
+.sh-meta dd{margin:0; font-size:16px; color:var(--paper-ink)}
 
-.sh-order{display:flex; align-items:center; gap:14px; padding-top:14px; border-top:1px solid #cdbf9f}
-.sh-label{font-family:var(--mono); font-size:11px; letter-spacing:.3em; color:#8a7c66}
+.sh-order{display:flex; align-items:center; gap:14px; padding-top:14px; border-top:1px solid var(--paper-line)}
+.sh-label{font-family:var(--mono); font-size:11px; letter-spacing:.3em; color:var(--paper-faint)}
 .sh-dots{display:flex; gap:9px}
-.sh-dots i{width:6px; height:6px; border-radius:50%; background:#3a3128; opacity:0; transform:scale(.4); transition:opacity .35s, transform .35s}
+.sh-dots i{width:6px; height:6px; border-radius:50%; background:var(--paper-ink); opacity:0; transform:scale(.4); transition:opacity .35s, transform .35s}
 .sh-dots i.on{opacity:.75; transform:none}
 
 /* 판결 도장 */
@@ -904,8 +1137,8 @@ body.in-scene #corner, body.slow #corner{display:none}
   font-size:clamp(58px,17vw,96px); font-weight:700; letter-spacing:.16em; text-indent:.16em; line-height:1;
   padding:.1em .28em .14em; border:6px double currentColor; border-radius:6px;
 }
-.sh-verdict.guilty span{color:#9a2418; text-shadow:0 0 1px rgba(154,36,24,.4)}
-.sh-verdict.innocent span{color:#3f5448}
+.sh-verdict.guilty span{color:var(--guilty); text-shadow:0 0 1px rgba(154,36,24,.4)}
+.sh-verdict.innocent span{color:var(--calm)}
 .sh-verdict.slam span{animation:slam .26s cubic-bezier(.7,0,.84,0) forwards}
 @keyframes slam{
   0%{opacity:0; transform:scale(3.2) rotate(-14deg)}
@@ -919,26 +1152,26 @@ body.in-scene #corner, body.slow #corner{display:none}
 }
 
 .sh-body{display:flex; flex-direction:column; gap:10px; margin:10px 0 4px}
-.sh-body p{margin:0; font-size:16px; line-height:1.85; color:#2a241d}
-.sh-body .sh-sentence{font-size:clamp(22px,6vw,28px); font-weight:700; color:#7d1c14; letter-spacing:.04em; margin-bottom:2px}
-.sh-body .sh-sentence.calm{color:#3f5448}
-.sh-body .sh-quiet{color:#6d6252; font-size:15px}
+.sh-body p{margin:0; font-size:16px; line-height:1.85; color:var(--paper-ink)}
+.sh-body .sh-sentence{font-size:clamp(22px,6vw,28px); font-weight:700; color:var(--blood); letter-spacing:.04em; margin-bottom:2px}
+.sh-body .sh-sentence.calm{color:var(--calm)}
+.sh-body .sh-quiet{color:var(--paper-ink2); font-size:15px}
 
 .sh-reason{
-  margin:22px 0 0; padding:14px 16px; border-left:3px solid #a08a5e;
-  background:rgba(160,138,94,.09);
+  margin:22px 0 0; padding:14px 16px; border-left:3px solid var(--paper-edge);
+  background:var(--paper-wash);
 }
-.sh-reason span{display:block; margin-bottom:6px; font-family:var(--mono); font-size:10.5px; letter-spacing:.28em; color:#8a7c66}
-.sh-reason p{margin:0; font-size:clamp(16px,4.4vw,18px); line-height:1.75; color:#231f1a}
-.sh-lead{margin:0 0 16px; font-size:16px; line-height:1.85; color:#2a241d}
-.sh-ps{margin:18px 0 0; font-size:14px; line-height:1.8; color:#6d6252}
-.sh-foot{margin-top:22px; text-align:right; font-family:var(--mono); font-size:11px; letter-spacing:.3em; color:#8a7c66}
+.sh-reason span{display:block; margin-bottom:6px; font-family:var(--mono); font-size:10.5px; letter-spacing:.28em; color:var(--paper-faint)}
+.sh-reason p{margin:0; font-size:clamp(16px,4.4vw,18px); line-height:1.75; color:var(--paper-ink)}
+.sh-lead{margin:0 0 16px; font-size:16px; line-height:1.85; color:var(--paper-ink)}
+.sh-ps{margin:18px 0 0; font-size:14px; line-height:1.8; color:var(--paper-ink2)}
+.sh-foot{margin-top:22px; text-align:right; font-family:var(--mono); font-size:11px; letter-spacing:.3em; color:var(--paper-faint)}
 
 .notice-lines{width:min(560px,92vw); display:flex; flex-direction:column; gap:8px; text-align:center}
 .notice-line{
-  margin:0; color:#e9e0cd; font-size:15.5px; line-height:1.9;
+  margin:0; color:var(--notice-fg); font-size:15.5px; line-height:1.9;
   opacity:0; transform:translateY(6px); transition:opacity .8s, transform .8s;
-  text-shadow:0 1px 12px rgba(0,0,0,.6);
+  text-shadow:0 1px 12px var(--notice-shadow);
 }
 .notice-line.on{opacity:1; transform:none}
 
@@ -947,7 +1180,7 @@ body.in-scene #corner, body.slow #corner{display:none}
   opacity:0; transition:opacity .9s ease;
 }
 .notice-end.on{opacity:1}
-.notice-end .credit{justify-content:center; color:#a89c85}
+.notice-end .credit{justify-content:center; color:var(--notice-fg2)}
 
 @media (prefers-reduced-motion:reduce){
   .notice.impact .notice-stage{animation:none}

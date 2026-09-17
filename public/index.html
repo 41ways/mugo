@@ -5,7 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>무고 — 無辜</title>
 <meta name="description" content="안개 낀 항구 마을 회항. 연쇄살인 용의자를 심문하고, 당신의 한마디로 그의 생사가 갈린다.">
-<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#ded1b4">
+<script>
+  // 첫 페인트 전에 테마를 정해서 화면이 번쩍이지 않게 한다
+  try {
+    var t = localStorage.getItem('theme');
+    if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.dataset.theme = t;
+  } catch (e) {}
+</script>
 <meta property="og:title" content="무고 — 無辜">
 <meta property="og:description" content="회항에는 판사가 없다. 마을에 들어온 탐정의 한마디가 판결이 된다.">
 <meta property="og:type" content="website">
@@ -28,8 +36,9 @@
   </div>
 </main>
 
-<div id="corner" hidden>
-  <button id="book" type="button" aria-label="수첩">수첩</button>
+<div id="corner">
+  <button id="theme" type="button" aria-label="등불 끄기">등불 끄기</button>
+  <button id="book" type="button" aria-label="수첩" hidden>수첩</button>
 </div>
 
 <div id="scene" aria-hidden="true"></div>
@@ -38,7 +47,7 @@
 <div id="slowbar" aria-hidden="true"><i></i></div>
 
 <noscript>
-  <p style="padding:40px;color:#c9bda4;font-family:serif">이 게임은 자바스크립트가 있어야 돌아간다.</p>
+  <p style="padding:40px;font-family:serif">이 게임은 자바스크립트가 있어야 돌아간다.</p>
 </noscript>
 
 <script src="plates.js"></script>

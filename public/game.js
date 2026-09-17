@@ -17,8 +17,28 @@
   const tapslot = document.getElementById('tapslot'); // 계속 — 자리는 늘 비어 있어도 지킨다
   const scene = document.getElementById('scene');   // 사진이 화면을 다 덮는 몰입 화면
   const slowbar = document.getElementById('slowbar');
-  const corner = document.getElementById('corner');
+  const bookBtn = document.getElementById('book');
   const notesBox = document.getElementById('notes');
+
+  /* ── 등불 — 켜 두고 읽을지, 끄고 읽을지 ──────────────────
+     어느 쪽인지는 <head> 스크립트가 첫 페인트 전에 이미 정해 뒀다.
+     여기서는 단추 글씨와 주소창 색만 맞추고, 손으로 고른 것만 기억한다. */
+  const themeBtn = document.getElementById('theme');
+  const isDark = () => document.documentElement.dataset.theme === 'dark';
+  function paintTheme(t) {
+    document.documentElement.dataset.theme = t;
+    const label = t === 'dark' ? '등불 켜기' : '등불 끄기';
+    themeBtn.textContent = label;
+    themeBtn.setAttribute('aria-label', label);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = t === 'dark' ? '#0a0a0c' : '#ded1b4';
+  }
+  function setTheme(t) {
+    paintTheme(t);
+    try { localStorage.setItem('theme', t); } catch (e) {}   // 고른 것만 남긴다
+  }
+  paintTheme(isDark() ? 'dark' : 'light');
+  themeBtn.onclick = () => setTheme(isDark() ? 'light' : 'dark');
 
   /* ── 잡동사니 ───────────────────────────────────────── */
 
@@ -155,11 +175,13 @@
     shut.onclick = closeNotes;
     notesBox.onclick = (e) => { if (e.target === notesBox) closeNotes(); };  // 바깥을 눌러도 덮인다
     notesBox.hidden = false;
+    document.body.classList.add('reading');
     notesBox.scrollTop = 0;
     addEventListener('keydown', notesKey, true);
   }
   function closeNotes() {
     notesBox.hidden = true;
+    document.body.classList.remove('reading');
     notesBox.innerHTML = '';
     removeEventListener('keydown', notesKey, true);
   }
@@ -889,8 +911,8 @@
     await new Promise((r) => { go.onclick = r; });
     state.began = Date.now();
     if (window.norara) norara.ev('start', { n: 1 });
-    corner.hidden = false;
-    document.getElementById('book').onclick = openNotes;
+    bookBtn.hidden = false;
+    bookBtn.onclick = openNotes;
     stage.classList.remove('mid');
   }
 
@@ -1464,7 +1486,7 @@
     const flash = root.appendChild(el('div', 'notice-flash'));
     const stage = root.appendChild(el('div', 'notice-stage'));
     requestAnimationFrame(() => root.classList.add('on'));
-    corner.hidden = true;
+    bookBtn.hidden = true;
 
     const button = (label, cls = 'btn') => new Promise((resolve) => {
       const b = stage.appendChild(el('button', `${cls} notice-btn`, esc(label)));
