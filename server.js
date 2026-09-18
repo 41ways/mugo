@@ -218,6 +218,13 @@ async function apiLookup(res, token) {
   });
 }
 
+// 판결문 봉투를 뜯었다. 누가 자기 판결을 읽었는지 주인이 admin.js 로 볼 수 있게 남긴다.
+async function apiRead(req, res) {
+  const body = await readBody(req);
+  const token = clip(body.token, 64);
+  json(res, 200, { ok: token ? await store.markRead(token) : false });
+}
+
 /* ─────────────────────────── 정적 파일 ─────────────────────────── */
 
 function serveStatic(req, res, urlPath) {
@@ -275,6 +282,7 @@ async function route(req, res) {
       if (req.method === 'POST' && p === '/api/verdict') return await apiVerdict(req, res);
       if (req.method === 'POST' && p === '/api/statement') return await apiStatement(req, res);
       if (req.method === 'POST' && p === '/api/mine') return await apiMine(req, res);
+      if (req.method === 'POST' && p === '/api/read') return await apiRead(req, res);
       if (req.method === 'GET' && p.startsWith('/api/statement/')) {
         return await apiLookup(res, decodeURIComponent(p.slice('/api/statement/'.length)));
       }

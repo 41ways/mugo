@@ -43,6 +43,14 @@ const mask = (e) => {
 };
 const judgedCount = (r) => (r.judged_count != null ? r.judged_count : (r.judged_at ? 1 : 0));
 const isParked = (r, now) => Number(r.claimed_at || 0) > now + PARK_MS;
+// 판결문을 뜯어 봤는가. 판결이 둘인데 첫 판결 때만 열었으면 둘째는 아직이다.
+const readMark = (r) => {
+  const n = judgedCount(r), seen = Number(r.read_count || 0);
+  if (!n) return '';
+  if (!seen) return '판결문 안 읽음';
+  const when = `${span(Date.now() - Number(r.read_at))} 전`;
+  return seen >= n ? `판결문 읽음 (${when})` : `${seen}번째 판결까지만 읽음 (${when})`;
+};
 
 async function all(store) {
   if (store.pool) return (await store.pool.query('SELECT * FROM statements ORDER BY created_at')).rows;
@@ -92,7 +100,7 @@ async function list(store) {
           : m.ok ? ' [통지 나감]' : ' [통지 못 나감]';
         return `${v.verdict === 'guilty' ? '유죄' : '무죄'}(${v.judge_name || '?'})${mail}`;
       }).join('  ·  ');
-      console.log(`  ${r.name.padEnd(8)} #${r.id.slice(0, 6)}  ${line}  · 주소 ${r.email ? '남음' : '지워짐'}`);
+      console.log(`  ${r.name.padEnd(8)} #${r.id.slice(0, 6)}  ${line}  · 주소 ${r.email ? '남음' : '지워짐'}  · ${readMark(r)}`);
     });
   }
 
@@ -126,7 +134,7 @@ async function show(store, key) {
   qs.forEach((q, i) => console.log(`  나   ${q}\n  남자 ${(ans[i] || '').trim() || '(대답하지 않는다)'}\n`));
   const vs = listOf(r.verdicts);
   if (vs.length) {
-    console.log('이미 난 판결');
+    console.log(`이미 난 판결 — ${readMark(r)}`);
     vs.forEach((v, i) => console.log(`  ${i + 1}. ${v.verdict === 'guilty' ? '유죄' : '무죄'} — 탐정 ${v.judge_name}: 「${v.reason || ''}」`));
     console.log('');
   }

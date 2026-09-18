@@ -194,6 +194,17 @@ class FileStore {
     await this.flush();
   }
 
+  // 판결문을 뜯어 봤다. 몇 번째 판결까지 읽었는지(read_count)와 마지막으로 연 때(read_at)만 남긴다.
+  async markRead(token) {
+    const row = this.rows.find((r) => r.token === token);
+    const n = row ? (row.judged_count != null ? row.judged_count : (row.judged_at ? 1 : 0)) : 0;
+    if (!n) return false;
+    row.read_count = Math.max(Number(row.read_count || 0), n);
+    row.read_at = Date.now();
+    await this.flush();
+    return true;
+  }
+
   // 대기열을 들여다볼 때만 쓴다(tools/queue.js). 게임 진행에는 안 쓰인다.
   async all() {
     return this.rows.slice();
@@ -231,6 +242,9 @@ ALTER TABLE statements ADD COLUMN IF NOT EXISTS holds JSONB NOT NULL DEFAULT '[]
 ALTER TABLE statements ADD COLUMN IF NOT EXISTS nonce TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS statements_nonce ON statements (nonce) WHERE nonce IS NOT NULL;
 CREATE INDEX IF NOT EXISTS statements_player ON statements (player, created_at);
+-- 판결문을 뜯어 봤는가. 몇 번째 판결까지 읽었는지와 마지막으로 연 때.
+ALTER TABLE statements ADD COLUMN IF NOT EXISTS read_count INT NOT NULL DEFAULT 0;
+ALTER TABLE statements ADD COLUMN IF NOT EXISTS read_at BIGINT;
 
 -- 이미 판결이 난 옛 행들을 새 칸으로 옮긴다. 한 번 읽힌 것으로 친다.
 UPDATE statements
@@ -389,11 +403,18 @@ class PgStore {
       [id, String(nth - 1), JSON.stringify(info), nth]);
   }
 
+  async markRead(token) {
+    const { rowCount } = await this.pool.query(
+      `UPDATE statements SET read_count = GREATEST(read_count, judged_count), read_at = $2
+        WHERE token = $1 AND judged_count > 0`, [token, Date.now()]);
+    return rowCount > 0;
+  }
+
   // 대기열을 들여다볼 때만 쓴다(tools/queue.js). 주소는 있는지 없는지만 가져온다.
   async all() {
     const { rows } = await this.pool.query(
       `SELECT id, name, caught, created_at, claimed_at, judged_at, verdict, judge_name,
-              judged_count, verdicts, holds, (email IS NOT NULL) AS email
+              judged_count, verdicts, holds, read_count, read_at, (email IS NOT NULL) AS email
          FROM statements`);
     return rows;
   }

@@ -1547,6 +1547,9 @@
     }
 
     await button('봉투를 뜯는다');
+    // 읽었다는 표시만 남긴다. 실패해도 판결문은 그대로 보여준다
+    fetch('/api/read', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token }), keepalive: true }).catch(() => {});
     env.querySelector('.env-paper').style.clipPath = `polygon(${left},100% 100%,0 100%)`;
     env.classList.add('open');
     await pause(700);
