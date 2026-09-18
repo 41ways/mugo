@@ -4,3 +4,4 @@ data/
 .DS_Store
 storymap.html
 pic/
+.env.local
