@@ -31,9 +31,9 @@
   let W = 0, H = 0, dpr = 1, raf = 0, last = 0, alive = false;
 
   // 속도 단위는 "창 높이/초". 가까운 것일수록 빠르다.
-  const V = { far: 0.022, mid: 0.26, near: 1.15, pole: 1.9 };
+  const V = { far: 0.022, mid: 0.26, wire: 0.85, near: 1.15, pole: 1.9 };
   const S = {
-    t: 0, speed: 1, far: rnd() * 40, mid: rnd() * 400, near: rnd() * 4000, pole: rnd() * 4000,
+    t: 0, speed: 1, far: rnd() * 40, mid: rnd() * 400, near: rnd() * 4000, wire: rnd() * 4000, pole: rnd() * 4000,
     evs: [], nextEv: 4 + rnd() * 4, lastKind: '',
     rain: 0, rainUntil: 0, drops: [],
     lean: 0, leanT: 0, nextLean: 8 + rnd() * 8,
@@ -194,6 +194,31 @@
       c.clip();
     }
 
+    // 전봇대와 전깃줄 — 둑 너머 조금 떨어져 서 있다. 가로대와 줄은 창 위쪽에 걸리고
+    // 밑동은 풀숲 뒤로 숨는다. 둑보다 멀어서 조금 느리게 지나가고, 앞의 나무에 가리기도 한다.
+    const PH = 0.9, PY = -0.04;   // 전봇대 높이와 꼭대기 자리(창 높이 비율)
+    // 간격은 창 너비 두세 개, 그리고 전봇대 줄이 아예 없는 구간도 길게 섞인다
+    const pc = 2.8, p0 = Math.floor((S.wire + L / h) / pc) - 1, p1 = Math.ceil((S.wire + R / h) / pc) + 1;
+    const poleX = (k) => (k * pc + (hash(k * 3 + 900) - 0.5) * 0.6 - S.wire) * h;
+    const noLine = (k) => !S.allPoles && noise(k * 0.22, 31) < 0.42;   // allPoles: 확인용
+    const blocked = (sx, k) => noLine(k) || S.evs.some((ev) => ev.kind !== 'passing' && sx > (ev.x - 0.7) * h && sx < (ev.x + ev.len + 0.7) * h);
+    const pw = ok(IMG.pole) ? (PH * h * IMG.pole.naturalWidth) / IMG.pole.naturalHeight : h * 0.3;
+    const arms = [PY + PH * 0.13, PY + PH * 0.355];
+    c.strokeStyle = 'rgba(14,12,10,.8)'; c.lineWidth = Math.max(1, h * 0.003);
+    c.beginPath();
+    for (let k = p0; k < p1; k++) {
+      const a = poleX(k), b = poleX(k + 1);
+      if (blocked(a, k) || blocked(b, k + 1)) continue;
+      for (const ay of arms) for (const dx of [-0.05, 0.04]) {   // 옆에서 보면 한 가로대의 줄들은 거의 겹친다
+        c.moveTo(a + dx * pw, h * ay); c.quadraticCurveTo((a + b) / 2 + dx * pw, h * (ay + 0.11 + dx * 0.3), b + dx * pw, h * ay);
+      }
+    }
+    c.stroke();
+    for (let k = p0; k <= p1; k++) {
+      const a = poleX(k);
+      if (!blocked(a, k)) spr(IMG.pole, a, h * (PY + PH), PH, false);
+    }
+
     // 가까운 것들: 숲의 전나무·마른 나무, 들의 울타리·짚더미, 마을의 돌집
     const base = h * 0.93;
     const nc = 0.32, n0 = Math.floor((S.near + L / h) / nc) - 3, n1 = Math.ceil((S.near + R / h) / nc) + 3;
@@ -225,30 +250,6 @@
 
     // 끼어드는 일들 뒤쪽(역 건물·승강장, 철교)
     for (const ev of S.evs) drawEvent(ev, true);
-
-    // 전봇대와 늘어진 전깃줄 — 지나갈 때마다 줄이 오르내린다
-    const PH = 1.3, PY = -0.06;   // 전봇대 높이와 꼭대기 자리(창 높이 비율)
-    // 간격은 창 너비 두세 개, 그리고 전봇대 줄이 아예 없는 구간도 길게 섞인다
-    const pc = 3.4, p0 = Math.floor((S.pole + L / h) / pc) - 1, p1 = Math.ceil((S.pole + R / h) / pc) + 1;
-    const poleX = (k) => (k * pc + (hash(k * 3 + 900) - 0.5) * 0.8 - S.pole) * h;
-    const noLine = (k) => noise(k * 0.22, 31) < 0.42;
-    const blocked = (sx, k) => noLine(k) || S.evs.some((ev) => ev.kind !== 'passing' && sx > (ev.x - 0.7) * h && sx < (ev.x + ev.len + 0.7) * h);
-    const pw = ok(IMG.pole) ? (PH * h * IMG.pole.naturalWidth) / IMG.pole.naturalHeight : h * 0.4;
-    const arms = [PY + PH * 0.13, PY + PH * 0.355];
-    c.strokeStyle = 'rgba(14,12,10,.85)'; c.lineWidth = Math.max(1, h * 0.004);
-    c.beginPath();
-    for (let k = p0; k < p1; k++) {
-      const a = poleX(k), b = poleX(k + 1);
-      if (blocked(a, k) || blocked(b, k + 1)) continue;
-      for (const ay of arms) for (const dx of [-0.05, 0.04]) {   // 옆에서 보면 한 가로대의 줄들은 거의 겹친다
-        c.moveTo(a + dx * pw, h * ay); c.quadraticCurveTo((a + b) / 2 + dx * pw, h * (ay + 0.3 + dx * 0.4), b + dx * pw, h * ay);
-      }
-    }
-    c.stroke();
-    for (let k = p0; k <= p1; k++) {
-      const a = poleX(k);
-      if (!blocked(a, k)) spr(IMG.pole, a, h * (PY + PH), PH, false);
-    }
 
     // 끼어드는 일들 앞쪽(터널, 역 등·사람, 마주 오는 기차)
     for (const ev of S.evs) drawEvent(ev, false);
@@ -362,7 +363,7 @@
     const target = 1 + 0.12 * Math.sin(S.t * 0.07) + 0.05 * Math.sin(S.t * 0.23);
     S.speed += (target - S.speed) * Math.min(1, dt);
     const v = S.speed * (still ? 0.35 : 1);
-    S.far += V.far * v * dt; S.mid += V.mid * v * dt; S.near += V.near * v * dt; S.pole += V.pole * v * dt;
+    S.far += V.far * v * dt; S.mid += V.mid * v * dt; S.near += V.near * v * dt; S.wire += V.wire * v * dt; S.pole += V.pole * v * dt;
 
     for (const ev of S.evs) ev.x -= ev.v * v * dt;
     S.evs = S.evs.filter((ev) => ev.x + ev.len > -0.5);

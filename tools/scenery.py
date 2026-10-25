@@ -153,8 +153,8 @@ SPR = {'pine': (150, 200), 'bare': (470, 330), 'cottage': (860, 240), 'pole': (1
        'fence': (205, 635), 'hay': (590, 610), 'lamp': (912, 600), 'man': (1210, 590)}
 for nm, (x, y) in SPR.items():
     p = pick(sheet, x, y)
-    p = night(p, 0.5 if nm != 'pole' else 0.32)
-    p = blur_x(p, {'pole': 5, 'lamp': 2}.get(nm, 2))
+    p = night(p, 0.5 if nm != 'pole' else 0.42)
+    p = blur_x(p, {'pole': 3, 'lamp': 2}.get(nm, 2))
     size = save(p, nm, h=420)
     meta[nm] = {'w': size[0], 'h': size[1]}
 
