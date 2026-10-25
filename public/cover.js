@@ -228,24 +228,26 @@
 
     // 전봇대와 늘어진 전깃줄 — 지나갈 때마다 줄이 오르내린다
     const PH = 1.3, PY = -0.06;   // 전봇대 높이와 꼭대기 자리(창 높이 비율)
-    const pc = 1.35, p0 = Math.floor((S.pole + L / h) / pc) - 1, p1 = Math.ceil((S.pole + R / h) / pc) + 1;
-    const poleX = (k) => (k * pc + (hash(k * 3 + 900) - 0.5) * 0.35 - S.pole) * h;
-    const blocked = (sx) => S.evs.some((ev) => ev.kind !== 'passing' && sx > (ev.x - 0.7) * h && sx < (ev.x + ev.len + 0.7) * h);
+    // 간격은 창 너비 두세 개, 그리고 전봇대 줄이 아예 없는 구간도 길게 섞인다
+    const pc = 3.4, p0 = Math.floor((S.pole + L / h) / pc) - 1, p1 = Math.ceil((S.pole + R / h) / pc) + 1;
+    const poleX = (k) => (k * pc + (hash(k * 3 + 900) - 0.5) * 0.8 - S.pole) * h;
+    const noLine = (k) => noise(k * 0.22, 31) < 0.42;
+    const blocked = (sx, k) => noLine(k) || S.evs.some((ev) => ev.kind !== 'passing' && sx > (ev.x - 0.7) * h && sx < (ev.x + ev.len + 0.7) * h);
     const pw = ok(IMG.pole) ? (PH * h * IMG.pole.naturalWidth) / IMG.pole.naturalHeight : h * 0.4;
     const arms = [PY + PH * 0.13, PY + PH * 0.355];
     c.strokeStyle = 'rgba(14,12,10,.85)'; c.lineWidth = Math.max(1, h * 0.004);
     c.beginPath();
     for (let k = p0; k < p1; k++) {
       const a = poleX(k), b = poleX(k + 1);
-      if (blocked(a) || blocked(b)) continue;
+      if (blocked(a, k) || blocked(b, k + 1)) continue;
       for (const ay of arms) for (const dx of [-0.05, 0.04]) {   // 옆에서 보면 한 가로대의 줄들은 거의 겹친다
-        c.moveTo(a + dx * pw, h * ay); c.quadraticCurveTo((a + b) / 2 + dx * pw, h * (ay + 0.15 + dx * 0.4), b + dx * pw, h * ay);
+        c.moveTo(a + dx * pw, h * ay); c.quadraticCurveTo((a + b) / 2 + dx * pw, h * (ay + 0.3 + dx * 0.4), b + dx * pw, h * ay);
       }
     }
     c.stroke();
     for (let k = p0; k <= p1; k++) {
       const a = poleX(k);
-      if (!blocked(a)) spr(IMG.pole, a, h * (PY + PH), PH, false);
+      if (!blocked(a, k)) spr(IMG.pole, a, h * (PY + PH), PH, false);
     }
 
     // 끼어드는 일들 앞쪽(터널, 역 등·사람, 마주 오는 기차)
