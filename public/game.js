@@ -900,6 +900,7 @@
   async function titleScreen() {
     wipe();
     stage.classList.add('mid');
+    if (window.TrainCover) TrainCover.start();
     const box = addLine(el('div', 'title'));
     box.innerHTML =
       `<h1 class="han">무고</h1>` +
@@ -909,6 +910,12 @@
     row.style.justifyContent = 'center';
     const go = row.appendChild(el('button', 'btn', '시작하기'));
     await new Promise((r) => { go.onclick = r; });
+    go.disabled = true;
+    if (window.TrainCover) {
+      stage.style.transition = 'opacity .9s'; stage.style.opacity = '0';
+      await TrainCover.stop();
+      stage.style.transition = ''; stage.style.opacity = '';
+    }
     state.began = Date.now();
     if (window.norara) norara.ev('start', { n: 1 });
     bookBtn.hidden = false;
