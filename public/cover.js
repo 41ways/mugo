@@ -1,7 +1,7 @@
 /* 첫 화면 — 밤기차 객실.
-   창밖은 한 번 열 때마다 새 씨앗으로 지어서 같은 길이 되풀이되지 않는다.
-   먼 하늘·바다만 그림이고, 언덕·숲·마을·호수·전봇대와 가끔 끼어드는
-   터널·철교·간이역·마주 오는 기차·비는 전부 여기서 그린다.
+   창밖은 제미나이 그림 조각(img/scn)을 한 번 열 때마다 새 씨앗으로 늘어놓아
+   같은 길이 되풀이되지 않는다. 언덕·호수·들 파노라마가 뒤집혀 가며 이어지고,
+   가까이로 숲·울타리·돌집·전봇대가, 가끔 터널·철교·간이역·마주 오는 기차·비가 지나간다.
    객실은 레일 이음매마다 덜컹이고, 좌우로 기울고, 굽은 길에서 쏠린다.
    창밖은 객실과 반대로 수평을 지켜서 진짜로 차 안에 앉은 것처럼 보인다. */
 (function () {
@@ -31,7 +31,7 @@
   let W = 0, H = 0, dpr = 1, raf = 0, last = 0, alive = false;
 
   // 속도 단위는 "창 높이/초". 가까운 것일수록 빠르다.
-  const V = { far: 0.022, mid: 0.3, near: 1.15, pole: 1.9 };
+  const V = { far: 0.022, mid: 0.26, near: 1.15, pole: 1.9 };
   const S = {
     t: 0, speed: 1, far: rnd() * 40, mid: rnd() * 400, near: rnd() * 4000, pole: rnd() * 4000,
     evs: [], nextEv: 4 + rnd() * 4, lastKind: '',
@@ -64,31 +64,62 @@
     sw.ty = j * 4.4 + 1.4 * Math.sin(t * 2.05) + jitter;
   }
 
+  /* ── 창밖 그림 조각 (tools/scenery.py 가 raw/ 제미나이 그림에서 만든다) ── */
+  const IMG = {};
+  const PARTS = ['mid_hills', 'mid_lake', 'mid_moor', 'grass', 'pine', 'bare', 'cottage', 'pole', 'fence', 'hay',
+    'lamp', 'man', 'sign', 'station', 'bridge', 'train', 'rock0', 'rock1'];
+  const SEAM = 170 / 1584;                    // 파노라마 양끝을 녹여 둔 폭(비율)
+  const ok = (im) => im && im.complete && im.naturalWidth > 0;
+  function loadParts() {
+    for (const n of PARTS) { const im = new Image(); im.src = 'img/scn/' + n + '.webp'; IMG[n] = im; }
+  }
+  // 그림 하나를 바닥 기준으로 세운다. hh 는 창 높이 비율, flip 이면 좌우를 뒤집는다.
+  function spr(im, x, base, hh, flip) {
+    if (!ok(im)) return 0;
+    const h = H * hh, w = (h * im.naturalWidth) / im.naturalHeight;
+    if (flip) { cx.save(); cx.translate(x, 0); cx.scale(-1, 1); cx.drawImage(im, -w / 2, base - h, w, h); cx.restore(); }
+    else cx.drawImage(im, x - w / 2, base - h, w, h);
+    return w;
+  }
+
+  // 중간 거리: 언덕·호수·들 파노라마를 무작위로 (뒤집기도 섞어) 이어 붙인다
+  const MID_H = 0.6, MID_Y = 0.47;
+  const midTiles = [];
+  function midTile(prev) {
+    const opts = [];
+    for (const n of ['mid_hills', 'mid_lake', 'mid_moor']) for (const f of [false, true]) {
+      if (!prev || n !== prev.n) opts.push([n, f]);
+    }
+    const pick = opts[(rnd() * opts.length) | 0], n = pick[0], flip = pick[1];
+    const im = IMG[n], w = ok(im) ? (MID_H * im.naturalWidth) / im.naturalHeight : 2.6;
+    return { n, flip, w, x: prev ? prev.x + prev.w * (1 - SEAM) : S.mid - 1 };
+  }
+  // 가까운 둑 풀숲 띠 — 한 장을 뒤집어 가며 잇는다
+  const GR_H = 0.36;
+
   /* ── 창밖: 구간 ── */
-  // 가까운 땅의 성격 — 호수 · 들 · 숲 · 마을 이 길게 번갈아 나온다
+  // 가까운 땅의 성격 — 숲 · 들 · 마을 · 탁 트인 곳 이 길게 번갈아 나온다
   const zone = (wx) => noise(wx / 10, 1) * 0.75 + noise(wx / 3.3, 7) * 0.25;
-  const kindOf = (z) => (z < 0.33 ? 'lake' : z < 0.52 ? 'field' : z < 0.7 ? 'forest' : 'town');
-  const groundY = (wx, k) => (k === 'lake' ? 0.95 : 0.83 + 0.05 * (noise(wx * 1.1, 2) - 0.5) * 2);
-  const ridge = (mx) => 0.6 + 0.17 * (noise(mx * 0.5, 3) - 0.5) + 0.05 * (noise(mx * 2.3, 4) - 0.5);
+  const kindOf = (z) => (z < 0.33 ? 'open' : z < 0.52 ? 'field' : z < 0.7 ? 'forest' : 'town');
 
   /* ── 끼어드는 일들 ── */
   const STATIONS = ['안개곶', '북포', '등대목', '갯골', '서항', '물푸레'];
   const KINDS = { tunnel: 1, bridge: 1, station: 1, passing: 1, rain: 0.8 };
   function spawn() {
-    let pool = Object.keys(KINDS).filter((k) => k !== S.lastKind && !(k === 'rain' && S.t < S.rainUntil));
+    const pool = Object.keys(KINDS).filter((k) => k !== S.lastKind && !(k === 'rain' && S.t < S.rainUntil));
     let sum = pool.reduce((a, k) => a + KINDS[k], 0), r = rnd() * sum, kind = pool[0];
     for (const k of pool) { r -= KINDS[k]; if (r <= 0) { kind = k; break; } }
     S.lastKind = kind;
     S.nextEv = S.t + 7 + rnd() * 9;
     if (kind === 'rain') { S.rainUntil = S.t + 14 + rnd() * 14; return; }
-    const ev = { kind, x: W / H + 0.3, seed: (rnd() * 1e6) | 0, v: V.pole };
+    const ev = { kind, x: W / H + 0.6, seed: (rnd() * 1e6) | 0, v: V.pole };
     if (kind === 'tunnel') ev.len = 6 + rnd() * 4;
-    if (kind === 'bridge') ev.len = 4.5 + rnd() * 3;
+    if (kind === 'bridge') ev.len = 4 + 2 * ((rnd() * 3) | 0);
     if (kind === 'station') {
       ev.len = 6.5; ev.name = STATIONS[(rnd() * STATIONS.length) | 0];
-      ev.who = rnd() < 0.55 ? 1.9 + ((rnd() * 3) | 0) * 1.6 : -1;   // 승강장에 누가 서 있기도 하다
+      ev.who = rnd() < 0.55 ? 1.25 + ((rnd() * 3) | 0) * 1.6 : -1;   // 승강장에 누가 서 있기도 하다
     }
-    if (kind === 'passing') { ev.len = 12 + rnd() * 8; ev.v = 7.5; }
+    if (kind === 'passing') { ev.len = 8 + rnd() * 6; ev.v = 7.5; }
     S.evs.push(ev);
   }
   const busy = () => S.evs.length > 0;
@@ -96,8 +127,8 @@
   /* ── 그리기 ── */
   function warm(x, y, r, a) {
     const g = cx.createRadialGradient(x, y, 0, x, y, r);
-    g.addColorStop(0, `rgba(255,205,135,${a})`);
-    g.addColorStop(0.35, `rgba(240,160,80,${a * 0.35})`);
+    g.addColorStop(0, 'rgba(255,205,135,' + a + ')');
+    g.addColorStop(0.35, 'rgba(240,160,80,' + a * 0.35 + ')');
     g.addColorStop(1, 'rgba(240,160,80,0)');
     cx.fillStyle = g;
     cx.fillRect(x - r, y - r, r * 2, r * 2);
@@ -107,6 +138,10 @@
     if (k <= 0) return;
     S.lightX = (S.lightX * S.light + (sx / W) * k) / (S.light + k);
     S.light += k;
+  }
+  function flipDraw(im, x, y, w, h, flip) {
+    if (!flip) { cx.drawImage(im, x, y, w, h); return; }
+    cx.save(); cx.translate(x + w, 0); cx.scale(-1, 1); cx.drawImage(im, 0, y, w, h); cx.restore();
   }
 
   function paint() {
@@ -122,147 +157,108 @@
     c.translate(-w / 2, -h / 2 - sw.ty * 0.7 + sw.pitch * 2);
     S.light = 0; S.dark = 0;
 
-    // 먼 하늘·바다 (그림)
-    if (sky && sky.complete && sky.naturalWidth) {
+    // 먼 하늘·바다
+    if (ok(sky)) {
       const dh = h * 1.25, dw = (sky.naturalWidth * dh) / sky.naturalHeight;
       let x = -((S.far * h) % dw);
       while (x > L) x -= dw;
-      for (; x < R; x += dw) c.drawImage(sky, x, -h * 0.09, dw, dh);
+      for (; x < R; x += dw) c.drawImage(sky, x, -h * 0.09, dw + 1, dh);
     }
-    if (S.rain > 0) { c.fillStyle = `rgba(8,8,9,${0.35 * S.rain})`; c.fillRect(L, -h, R - L, h * 3); }
+    if (S.rain > 0) { c.fillStyle = 'rgba(8,8,9,' + 0.35 * S.rain + ')'; c.fillRect(L, -h, R - L, h * 3); }
 
-    // 먼 능선과 작은 나무들, 드문 불빛
-    c.fillStyle = 'rgb(23,20,16)';
-    c.beginPath(); c.moveTo(L, h * 1.2);
-    for (let x = L; x <= R + 4; x += 4) c.lineTo(x, h * ridge(S.mid + x / h));
-    c.lineTo(R, h * 1.2); c.fill();
-    const cell = 0.045, i0 = Math.floor((S.mid + L / h) / cell), i1 = Math.ceil((S.mid + R / h) / cell);
-    c.beginPath();
-    for (let i = i0; i <= i1; i++) {
-      const mx = i * cell + hash(i * 5 + 1) * cell * 0.6, dens = noise(mx * 0.35, 5);
-      if (hash(i * 5 + 2) > dens * 1.4 - 0.3) continue;
-      const x = (mx - S.mid) * h, y = h * ridge(mx) + 2, th = h * (0.025 + 0.05 * hash(i * 5 + 3)), tw = th * 0.36;
-      c.moveTo(x - tw, y); c.lineTo(x, y - th); c.lineTo(x + tw, y);
-    }
-    c.fill();
-    for (let i = i0; i <= i1; i++) {
-      if (hash(i * 5 + 4) > 0.014) continue;
-      const mx = i * cell, x = (mx - S.mid) * h, y = h * ridge(mx) - h * 0.008;
-      const tw = 0.55 + 0.45 * noise(S.t * 3 + i, 25);
-      warm(x, y, h * 0.03, 0.55 * tw);
+    // 중간 거리 파노라마
+    while (midTiles.length && midTiles[0].x + midTiles[0].w < S.mid + L / h) midTiles.shift();
+    if (!midTiles.length) midTiles.push(midTile(null));
+    while (midTiles[midTiles.length - 1].x + midTiles[midTiles.length - 1].w < S.mid + R / h + 0.2) midTiles.push(midTile(midTiles[midTiles.length - 1]));
+    for (const t of midTiles) {
+      const im = IMG[t.n];
+      if (ok(im)) flipDraw(im, (t.x - S.mid) * h, MID_Y * h, t.w * h, MID_H * h, t.flip);
     }
 
     // 안개 — 짙어졌다 옅어졌다
-    const fogA = 0.1 + 0.28 * noise(S.mid * 0.12 + S.t * 0.02, 6) + 0.18 * S.rain;
+    const fogA = 0.06 + 0.22 * noise(S.mid * 0.12 + S.t * 0.02, 6) + 0.16 * S.rain;
     let g = c.createLinearGradient(0, h * 0.45, 0, h * 0.95);
     g.addColorStop(0, 'rgba(150,136,116,0)');
-    g.addColorStop(0.5, `rgba(150,136,116,${fogA})`);
+    g.addColorStop(0.5, 'rgba(150,136,116,' + fogA + ')');
     g.addColorStop(1, 'rgba(150,136,116,0)');
     c.fillStyle = g; c.fillRect(L, h * 0.45, R - L, h * 0.5);
 
-    // 가까운 땅
-    const step = 3;
-    let lakeMid = false;
-    c.fillStyle = 'rgb(24,21,18)';
-    for (let x = L; x <= R; x += step) {
-      const wx = S.near + x / h;
-      if (kindOf(zone(wx)) === 'lake') {
-        c.fillRect(x, h * 0.77, step + 0.5, h * 0.4);
-        if (Math.abs(x - w * 0.62) < step) lakeMid = true;
-      }
+    // 철교 위에서는 가까운 둑이 없다 — 그 구간은 가린다
+    const gaps = S.evs.filter((ev) => ev.kind === 'bridge').map((ev) => [ev.x * h, (ev.x + ev.len) * h]);
+    c.save();
+    if (gaps.length) {
+      c.beginPath();
+      let from = L - h;
+      for (const [a, b] of gaps.sort((p, q) => p[0] - q[0])) { if (a > from) c.rect(from, -h, a - from, h * 3); from = Math.max(from, b); }
+      c.rect(from, -h, R + h - from, h * 3);
+      c.clip();
     }
-    if (lakeMid) {   // 물에 비친 달빛이 잘게 부서진다
-      const tick = Math.floor(S.t * 7);
-      for (let k = 0; k < 11; k++) {
-        const y = h * (0.79 + k * 0.016), half = w * 0.045 * (1 - k / 13) * (0.5 + hash(k + tick * 17));
-        const x = w * 0.62 + (hash(k * 3 + tick * 31) - 0.5) * w * 0.05;
-        c.fillStyle = `rgba(222,204,170,${0.32 - k * 0.022})`;
-        c.fillRect(x - half, y, half * 2, Math.max(1, h * 0.004));
-      }
-    }
-    c.fillStyle = '#0b0a08';
-    c.beginPath(); c.moveTo(L, h * 1.2);
-    for (let x = L; x <= R + step; x += step) {
-      const wx = S.near + x / h;
-      c.lineTo(x, h * groundY(wx, kindOf(zone(wx))));
-    }
-    c.lineTo(R + step, h * 1.2); c.fill();
 
-    // 땅 위의 것들: 울타리 · 짚더미 · 나무 · 집
-    const nc = 0.3, n0 = Math.floor((S.near + L / h) / nc) - 2, n1 = Math.ceil((S.near + R / h) / nc) + 1;
+    // 가까운 것들: 숲의 전나무·마른 나무, 들의 울타리·짚더미, 마을의 돌집
+    const base = h * 0.93;
+    const nc = 0.32, n0 = Math.floor((S.near + L / h) / nc) - 3, n1 = Math.ceil((S.near + R / h) / nc) + 3;
     for (let i = n0; i <= n1; i++) {
       const wx = i * nc + hash(i * 7 + 1) * nc * 0.5, k = kindOf(zone(wx));
-      const x = (wx - S.near) * h, gy = h * groundY(wx, k);
-      if (k === 'field') {
-        c.fillStyle = '#0b0a08';
-        for (let p = 0; p < 3; p++) c.fillRect(x + p * nc * h / 3, gy - h * 0.06, h * 0.012, h * 0.07);
-        c.fillRect(x, gy - h * 0.045, nc * h, Math.max(1, h * 0.006));
-        if (hash(i * 7 + 2) < 0.08) {
-          c.beginPath(); c.ellipse(x + h * 0.1, gy, h * 0.08, h * 0.06, 0, Math.PI, 0); c.fill();
-        }
-      } else if (k === 'forest') {
-        if (hash(i * 7 + 2) > 0.75) continue;
-        const th = h * (0.35 + 0.45 * hash(i * 7 + 3)), tw = th * (0.22 + 0.1 * hash(i * 7 + 4));
-        c.fillStyle = '#070605';
-        c.fillRect(x - h * 0.012, gy - th * 0.25, h * 0.024, th * 0.3);
-        c.beginPath();
-        for (let s = 0; s < 4; s++) {   // 층층이 겹친 침엽수
-          const y0 = gy - th * 0.18 - s * th * 0.2, ww = tw * (1 - s * 0.2);
-          c.moveTo(x - ww, y0); c.lineTo(x, y0 - th * 0.38); c.lineTo(x + ww, y0);
-        }
-        c.fill();
+      const x = (wx - S.near) * h, r1 = hash(i * 7 + 2), r2 = hash(i * 7 + 3), flip = hash(i * 7 + 4) < 0.5;
+      if (k === 'forest') {
+        if (r1 < 0.62) spr(IMG.pine, x, base + h * 0.04, 1.0 + 0.5 * r2, flip);
+        else if (r1 < 0.78) spr(IMG.bare, x, base + h * 0.04, 0.8 + 0.35 * r2, flip);
+      } else if (k === 'field') {
+        spr(IMG.fence, x, base, 0.2, flip);
+        if (r1 < 0.09) spr(IMG.hay, x + h * 0.1, base + h * 0.03, 0.24 + 0.06 * r2, flip);
       } else if (k === 'town') {
-        if (hash(i * 7 + 2) > 0.7) continue;
-        const bw = h * (0.2 + 0.16 * hash(i * 7 + 3)), bh = h * (0.11 + 0.09 * hash(i * 7 + 4)), rf = h * (0.06 + 0.06 * hash(i * 7 + 5));
-        c.fillStyle = '#0a0907';
-        c.fillRect(x, gy - bh, bw, bh + 2);
-        c.beginPath(); c.moveTo(x - h * 0.015, gy - bh); c.lineTo(x + bw / 2, gy - bh - rf); c.lineTo(x + bw + h * 0.015, gy - bh); c.fill();
-        if (hash(i * 7 + 6) < 0.5) c.fillRect(x + bw * 0.7, gy - bh - rf * 0.9, h * 0.025, rf * 0.6);
-        const nw = 1 + ((hash(i * 7 + 5) * 3) | 0);
-        for (let q = 0; q < nw; q++) {
-          if (hash(i * 31 + q) < 0.45) continue;
-          const wx2 = x + bw * (q + 0.5) / nw - h * 0.016, wy = gy - bh * 0.62;
-          warm(wx2 + h * 0.016, wy + h * 0.02, h * 0.07, 0.22);
-          c.fillStyle = 'rgb(226,164,88)';
-          c.fillRect(wx2, wy, h * 0.032, h * 0.04);
-          c.fillStyle = '#0a0907';
-          c.fillRect(wx2 + h * 0.015, wy, Math.max(1, h * 0.004), h * 0.04);
-        }
+        if (((i % 3) + 3) % 3 === 0 && r1 < 0.7) spr(IMG.cottage, x, base + h * 0.02, 0.5 + 0.14 * r2, flip);
+        else if (((i % 3) + 3) % 3 === 1 && r1 < 0.25) spr(IMG.bare, x, base + h * 0.04, 0.75 + 0.3 * r2, flip);
+      } else if (r1 < 0.07) spr(IMG.bare, x, base + h * 0.04, 0.7 + 0.3 * r2, flip);
+    }
+    // 둑 풀숲
+    const gi = IMG.grass;
+    if (ok(gi)) {
+      const gw = (GR_H * gi.naturalWidth) / gi.naturalHeight, step = gw * 0.97;
+      const k0 = Math.floor((S.near + L / h) / step), k1 = Math.ceil((S.near + R / h) / step);
+      for (let k = k0; k <= k1; k++) {
+        const y = h * (1.02 - GR_H) + hash(k * 11 + 5) * h * 0.03;
+        flipDraw(gi, (k * step - S.near) * h, y, gw * h, GR_H * h, hash(k * 11 + 6) < 0.5);
       }
     }
+    c.restore();
 
-    // 끼어드는 일들 뒤쪽 바닥(철교 아래 물, 승강장)
+    // 끼어드는 일들 뒤쪽(역 건물·승강장, 철교)
     for (const ev of S.evs) drawEvent(ev, true);
 
     // 전봇대와 늘어진 전깃줄 — 지나갈 때마다 줄이 오르내린다
+    const PH = 1.3, PY = -0.06;   // 전봇대 높이와 꼭대기 자리(창 높이 비율)
     const pc = 1.35, p0 = Math.floor((S.pole + L / h) / pc) - 1, p1 = Math.ceil((S.pole + R / h) / pc) + 1;
     const poleX = (k) => (k * pc + (hash(k * 3 + 900) - 0.5) * 0.35 - S.pole) * h;
     const blocked = (sx) => S.evs.some((ev) => ev.kind !== 'passing' && sx > (ev.x - 0.7) * h && sx < (ev.x + ev.len + 0.7) * h);
-    c.strokeStyle = 'rgba(8,7,6,.92)'; c.lineWidth = Math.max(1, h * 0.004);
+    const pw = ok(IMG.pole) ? (PH * h * IMG.pole.naturalWidth) / IMG.pole.naturalHeight : h * 0.4;
+    const arms = [PY + PH * 0.13, PY + PH * 0.355];
+    c.strokeStyle = 'rgba(14,12,10,.85)'; c.lineWidth = Math.max(1, h * 0.004);
+    c.beginPath();
     for (let k = p0; k < p1; k++) {
       const a = poleX(k), b = poleX(k + 1);
       if (blocked(a) || blocked(b)) continue;
-      for (const dy of [0.115, 0.165]) {
-        c.beginPath(); c.moveTo(a, h * dy); c.quadraticCurveTo((a + b) / 2, h * (dy + 0.16), b, h * dy); c.stroke();
+      for (const ay of arms) for (const dx of [-0.05, 0.04]) {   // 옆에서 보면 한 가로대의 줄들은 거의 겹친다
+        c.moveTo(a + dx * pw, h * ay); c.quadraticCurveTo((a + b) / 2 + dx * pw, h * (ay + 0.15 + dx * 0.4), b + dx * pw, h * ay);
       }
     }
-    c.fillStyle = '#050404';
+    c.stroke();
     for (let k = p0; k <= p1; k++) {
       const a = poleX(k);
-      if (blocked(a)) continue;
-      c.fillRect(a - h * 0.017, h * 0.06, h * 0.034, h * 1.2);
-      c.fillRect(a - h * 0.11, h * 0.1, h * 0.22, h * 0.018);
-      c.fillRect(a - h * 0.09, h * 0.15, h * 0.18, h * 0.014);
+      if (!blocked(a)) spr(IMG.pole, a, h * (PY + PH), PH, false);
     }
 
-    // 끼어드는 일들 앞쪽(터널 벽, 철교 트러스, 가로등, 마주 오는 기차)
+    // 끼어드는 일들 앞쪽(터널, 역 등·사람, 마주 오는 기차)
     for (const ev of S.evs) drawEvent(ev, false);
 
+    // 전체를 객실 사진 톤으로 한 번 누른다
+    c.fillStyle = 'rgba(14,10,6,.18)';
+    c.fillRect(L, -h, R - L, h * 3);
     c.restore();
 
     // 유리 — 빗방울, 등잔 반사, 가장자리 어둠 (유리는 객실과 같이 움직인다)
     if (S.rain > 0.02) {
-      c.strokeStyle = `rgba(200,188,165,${0.3 * S.rain})`; c.lineWidth = 1;
+      c.strokeStyle = 'rgba(200,188,165,' + 0.3 * S.rain + ')'; c.lineWidth = 1;
       c.beginPath();
       for (const d of S.drops) { c.moveTo(d.x, d.y); c.lineTo(d.x + d.l, d.y - d.l * 0.28); }
       c.stroke();
@@ -275,105 +271,83 @@
 
   function drawEvent(ev, back) {
     const c = cx, h = H, w = W, x0 = ev.x * h, x1 = (ev.x + ev.len) * h;
-    if (x1 < -w * 0.2 || x0 > w * 1.2) return;
+    if (x1 < -w * 0.3 || x0 > w * 1.3) return;
     const cover = clamp((Math.min(x1, w) - Math.max(x0, 0)) / w, 0, 1);
     if (ev.kind === 'tunnel') {
       if (back) return;
-      c.fillStyle = '#030302';
+      c.fillStyle = '#030202';
       c.fillRect(x0, -h * 0.3, x1 - x0, h * 1.6);
-      // 입구와 출구의 돌테
-      c.fillStyle = '#17130f';
-      c.fillRect(x0, -h * 0.3, h * 0.16, h * 1.6);
-      c.fillRect(x1 - h * 0.16, -h * 0.3, h * 0.16, h * 1.6);
-      c.fillStyle = '#0c0a08';
-      for (let y = -0.3; y < 1.3; y += 0.11) { c.fillRect(x0, h * y, h * 0.16, h * 0.012); c.fillRect(x1 - h * 0.16, h * (y + 0.05), h * 0.16, h * 0.012); }
-      for (let lx = x0 + h * 0.9; lx < x1 - h * 0.5; lx += h * 1.45) {   // 굴 안 등이 휙휙 지나간다
-        warm(lx, h * 0.26, h * 0.26, 0.5);
-        c.fillStyle = 'rgba(255,214,150,.9)';
-        c.fillRect(lx - h * 0.09, h * 0.25, h * 0.18, h * 0.02);
+      // 들어갈 때와 나올 때 스치는 바위 벽
+      if (ok(IMG.rock0) && ok(IMG.rock1)) {
+        const rh = h * 1.6;
+        const wall = (from, dir) => {   // dir 1: 입구에서 안으로, -1: 출구에서 안으로
+          let x = from, edge = from;
+          for (let i = 0; i < 4; i++) {
+            const rk = IMG['rock' + ((ev.seed + i) % 2)], rw = (rh * rk.naturalWidth) / rk.naturalHeight;
+            flipDraw(rk, dir > 0 ? x : x - rw, -h * 0.3, rw, rh, (ev.seed >> i) & 1);
+            edge = x + dir * rw;
+            x += dir * rw * 0.92;
+          }
+          // 바위가 끝나는 곳은 어둠 속으로 녹인다
+          const fade = h * 0.5, a = dir > 0 ? edge - fade : edge, gr = c.createLinearGradient(a, 0, a + fade, 0);
+          gr.addColorStop(dir > 0 ? 0 : 1, 'rgba(3,2,2,0)');
+          gr.addColorStop(dir > 0 ? 1 : 0, 'rgba(3,2,2,1)');
+          c.fillStyle = gr; c.fillRect(a, -h * 0.3, fade, h * 1.6);
+        };
+        wall(x0 - h * 0.25, 1);
+        wall(x1 + h * 0.25, -1);
+      }
+      for (let lx = x0 + h * 1.4; lx < x1 - h * 0.9; lx += h * 1.45) {   // 굴 안 등이 휙휙 지나간다
+        warm(lx, h * 0.26, h * 0.34, 0.45);
+        c.save(); c.translate(lx, h * 0.26); c.scale(4.5, 1);   // 빨리 지나가 가로로 번진 등불
+        warm(0, 0, h * 0.035, 0.95);
+        c.restore();
         addLight(lx, 0.35);
       }
       S.dark = Math.max(S.dark, cover);
     } else if (ev.kind === 'bridge') {
-      if (back) {
-        c.fillStyle = 'rgb(20,18,16)';
-        c.fillRect(x0, h * 0.74, x1 - x0, h * 0.5);
-        c.fillStyle = 'rgba(200,184,150,.16)';
-        for (let k = 0; k < 7; k++) c.fillRect(x0 + ((k * 0.37 + hash(ev.seed + k)) % 1) * (x1 - x0), h * (0.8 + k * 0.025), h * 0.4, Math.max(1, h * 0.004));
-        return;
-      }
-      c.fillStyle = '#060505'; c.strokeStyle = '#060505'; c.lineWidth = h * 0.028;
-      c.fillRect(x0, h * 0.04, x1 - x0, h * 0.07);
-      c.fillRect(x0, h * 0.85, x1 - x0, h * 0.08);
-      const bay = h * 0.78;
-      c.beginPath();
-      for (let bx = x0; bx < x1 - 1; bx += bay) {
-        c.fillRect(bx, h * 0.04, h * 0.05, h * 0.89);
-        const ex = Math.min(bx + bay, x1);
-        c.moveTo(bx, h * 0.1); c.lineTo(ex, h * 0.86);
-        c.moveTo(ex, h * 0.1); c.lineTo(bx, h * 0.86);
-      }
-      c.stroke();
-      c.fillRect(x1 - h * 0.05, h * 0.04, h * 0.05, h * 0.89);
+      if (!back) return;
+      const im = IMG.bridge;
+      if (!ok(im)) return;
+      const bh = h * 1.12, bw = (bh * im.naturalWidth) / im.naturalHeight;
+      for (let bx = x0; bx < x1 - 1; bx += bw * 0.985) c.drawImage(im, bx, -h * 0.06, bw, bh);
       S.dark = Math.max(S.dark, cover * 0.25);
     } else if (ev.kind === 'station') {
+      const st = IMG.station;
       if (back) {
-        // 역사 건물과 이름판
-        const bx = x0 + h * 2.2, bw = h * 2.4;
-        c.fillStyle = '#0e0c0a';
-        c.fillRect(bx, h * 0.4, bw, h * 0.42);
-        c.beginPath(); c.moveTo(bx - h * 0.1, h * 0.4); c.lineTo(bx + bw / 2, h * 0.27); c.lineTo(bx + bw + h * 0.1, h * 0.4); c.fill();
-        for (const fx of [0.18, 0.62]) {
-          warm(bx + bw * fx + h * 0.12, h * 0.56, h * 0.18, 0.3);
-          c.fillStyle = 'rgb(214,156,84)';
-          c.fillRect(bx + bw * fx, h * 0.5, h * 0.24, h * 0.14);
+        if (!ok(st)) return;
+        const sh = h * 0.78, sw2 = (sh * st.naturalWidth) / st.naturalHeight, top = h * 1.02 - sh, k = sh / st.naturalHeight;
+        // 승강장 — 역 그림 왼쪽의 빈 승강장 부분을 이어 깐다
+        const sy = st.naturalHeight * 0.76, sW = st.naturalWidth * 0.33, sH = st.naturalHeight - sy;
+        for (let px = x0; px < x1; px += sW * k * 0.98) c.drawImage(st, 0, sy, sW, sH, px, top + sy * k, sW * k, sH * k);
+        const bx = x0 + h * 2.1;
+        c.drawImage(st, bx, top, sw2, sh);
+        // 이름판 — 비어 있는 판에 역 이름을 쓴다
+        const sg = IMG.sign;
+        if (ok(sg)) {
+          const gh = h * 0.3, gw = (gh * sg.naturalWidth) / sg.naturalHeight, gx = bx - gw * 0.55, gy = top + sh * 0.18;
+          c.drawImage(sg, gx, gy, gw, gh);
+          c.fillStyle = 'rgba(214,196,160,.78)';
+          c.font = '700 ' + Math.round(gh * 0.2) + "px 'Nanum Myeongjo','Noto Serif KR',serif";
+          c.textAlign = 'center'; c.textBaseline = 'middle';
+          c.fillText(ev.name, gx + gw * 0.53, gy + gh * 0.74);
         }
-        c.fillStyle = '#1d1813';
-        c.fillRect(bx + bw * 0.28, h * 0.43, h * 0.62, h * 0.07);
-        c.fillStyle = '#cdb88f';
-        c.font = `700 ${Math.round(h * 0.045)}px 'Nanum Myeongjo','Noto Serif KR',serif`;
-        c.textAlign = 'center'; c.textBaseline = 'middle';
-        c.fillText(ev.name, bx + bw * 0.28 + h * 0.31, h * 0.468);
-        // 승강장
-        c.fillStyle = '#14110d';
-        c.fillRect(x0, h * 0.8, x1 - x0, h * 0.5);
-        c.fillStyle = '#2a231b';
-        c.fillRect(x0, h * 0.8, x1 - x0, Math.max(1, h * 0.012));
         return;
       }
       for (let lx = x0 + h * 0.5; lx < x1; lx += h * 1.6) {
-        c.fillStyle = '#060505';
-        c.fillRect(lx - h * 0.008, h * 0.33, h * 0.016, h * 0.48);
-        c.fillRect(lx - h * 0.04, h * 0.31, h * 0.08, h * 0.03);
-        warm(lx, h * 0.35, h * 0.5, 0.55);
+        warm(lx, h * 0.3, h * 0.5, 0.5);
+        spr(IMG.lamp, lx, h * 0.98, 0.72, false);
         addLight(lx, 0.9);
       }
-      if (ev.who > 0) {   // 등 밑에 선 사람 — 이쪽을 보는지 아닌지 모른다
-        const px = x0 + ev.who * h, py = h * 0.8;
-        c.fillStyle = '#040303';
-        c.beginPath();
-        c.moveTo(px - h * 0.055, py); c.lineTo(px - h * 0.04, py - h * 0.2); c.lineTo(px + h * 0.04, py - h * 0.2); c.lineTo(px + h * 0.055, py); c.fill();
-        c.beginPath(); c.arc(px, py - h * 0.225, h * 0.026, 0, Math.PI * 2); c.fill();
-        c.fillRect(px - h * 0.045, py - h * 0.25, h * 0.09, h * 0.008);
-        c.fillRect(px - h * 0.026, py - h * 0.285, h * 0.052, h * 0.036);
-      }
+      if (ev.who > 0) spr(IMG.man, x0 + ev.who * h, h * 0.97, 0.5, true);   // 등 밑에 선 사람
     } else if (ev.kind === 'passing') {
       if (back) return;
-      const carL = h * 3.3, gap = h * 0.14;
-      for (let cx0 = x0, j = 0; cx0 < x1; cx0 += carL + gap, j++) {
-        const cw = Math.min(carL, x1 - cx0);
-        c.fillStyle = '#0a0908';
-        c.fillRect(cx0, h * 0.12, cw, h * 0.86);
-        for (let m = 0; m < 6; m++) {
-          const wx = cx0 + h * 0.22 + m * h * 0.5;
-          if (wx > cx0 + cw - h * 0.3) break;
-          if (hash(ev.seed + j * 13 + m) < 0.3) continue;
-          c.fillStyle = 'rgba(240,178,98,.22)';
-          c.fillRect(wx - h * 0.14, h * 0.27, h * 0.6, h * 0.28);   // 속도에 번진 빛
-          c.fillStyle = 'rgba(244,186,108,.9)';
-          c.fillRect(wx, h * 0.3, h * 0.32, h * 0.22);
-          addLight(wx + h * 0.16, 0.22);
-        }
+      const im = IMG.train;
+      if (!ok(im)) return;
+      const th = h * 0.8, tw = (th * im.naturalWidth) / im.naturalHeight;
+      for (let tx = x0; tx < x1; tx += tw * 1.02) {
+        c.drawImage(im, tx, h * 0.17, tw, th);
+        for (let m = 0; m < 6; m++) addLight(tx + tw * (0.15 + m * 0.14), 0.12);
       }
       S.dark = Math.max(S.dark, cover * 0.55);
     }
@@ -465,6 +439,7 @@
     car = root.querySelector('.car'); cv = root.querySelector('canvas'); cx = cv.getContext('2d');
     room = root.querySelector('img'); lamp = root.querySelector('.lamp'); sweep = root.querySelector('.sweep'); dim = root.querySelector('.dim');
     sky = new Image(); sky.src = 'img/title_scenery.webp';
+    loadParts();
     layout();
     addEventListener('resize', layout);
     const show = () => requestAnimationFrame(() => root && root.classList.add('on'));
