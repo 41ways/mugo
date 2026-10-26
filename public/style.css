@@ -442,6 +442,7 @@ body.on-cover .title .gloss{margin-bottom:0; color:rgba(239,228,203,.8); text-sh
   animation:beckon 2.4s ease-in-out infinite;
   transition:filter .16s, transform .16s;
 }
+button.tap{-webkit-appearance:none; appearance:none; margin:0; line-height:inherit; text-align:inherit}
 .tap::after{content:'▸'; font-size:15px; animation:nudge 1.6s ease-in-out infinite}
 @media (hover:hover){.tap:hover{filter:brightness(1.12); transform:translateX(2px)}}
 @keyframes beckon{

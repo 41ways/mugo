@@ -212,17 +212,21 @@
         resolve();
         return;
       }
-      const tapEl = setTap(el('div', 'tap', '계속'));
+      // 진짜 버튼에 클릭 처리기를 직접 단다. 예전엔 div 에 처리기 없이 window 에서 가로채 판단했는데,
+      // 아이폰 사파리는 처리기 없는 div 를 탭해도 클릭을 만들어 주지 않아 「계속」이 안 눌렸다.
+      const tapEl = setTap(el('button', 'tap', '계속'));
+      tapEl.type = 'button';
+      let went = false;
       const go = (e) => {
+        if (went) return;
         if (!notesBox.hidden) return;   // 수첩을 펼친 채 누른 Enter·스페이스로 밑의 이야기가 넘어가지 않게
         if (e.type === 'keydown') {
           if (e.key !== 'Enter' && e.key !== ' ') return;
           e.preventDefault();
-        } else if (!tapEl.contains(e.target)) {
-          return;   // 계속 버튼을 눌러야만 넘어간다
         }
+        went = true;
         removeEventListener('keydown', go, true);
-        removeEventListener('click', go, true);
+        tapEl.onclick = null;
         tapslot.innerHTML = '';
         if (full) { wipe(); } else {
           const keep = [...flow.querySelectorAll('.sticky')];
@@ -232,7 +236,7 @@
         resolve();
       };
       addEventListener('keydown', go, true);
-      addEventListener('click', go, true);
+      tapEl.onclick = go;
     });
   }
 
@@ -671,14 +675,16 @@
         if (ended) return;
         ended = true;
         if (o.auto) { timer = setTimeout(finish, o.auto); return; }
-        tapEl = bar.appendChild(el('div', 'tap', '계속'));
+        tapEl = bar.appendChild(el('button', 'tap', '계속'));   // 진짜 버튼 — 아이폰 사파리에서 div 탭은 클릭이 안 된다
+        tapEl.type = 'button';
+        tapEl.onclick = onGo;
       };
       const finish = () => {
         if (closed) return;
         closed = true;
         clearTimeout(timer);
         removeEventListener('keydown', onGo, true);
-        removeEventListener('click', onGo, true);
+        if (tapEl) tapEl.onclick = null;
         resolve();
       };
       const onGo = (e) => {
@@ -693,7 +699,6 @@
         finish();
       };
       addEventListener('keydown', onGo, true);
-      addEventListener('click', onGo, true);
       step();
     });
   }
